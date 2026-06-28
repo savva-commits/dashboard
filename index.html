@@ -371,12 +371,14 @@
       <button class="btn secondary" id="saveAnthropicKeyBtn">Save Key</button>
     </div>
     <div class="card">
-      <h2>Today's Briefing</h2>
-      <div id="briefingContent">
-        <p class="placeholder-text">Connect WHOOP and Google Calendar, save your API key above, then generate your briefing.</p>
+      <h2>Briefing Chat</h2>
+      <div id="chatMessages" style="display:flex;flex-direction:column;gap:10px;max-height:50vh;overflow-y:auto;margin-bottom:12px;"></div>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="chatInput" placeholder="How are you feeling today?" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
+        <button class="btn" id="chatSendBtn" style="width:auto;padding:12px 18px;">Send</button>
       </div>
+      <button class="btn secondary" id="chatResetBtn" style="margin-top:10px;">Reset Chat</button>
     </div>
-    <button class="btn" id="generateBriefingBtn">Generate Briefing</button>
   </section>
 
 </main>
@@ -980,29 +982,9 @@
     return { recovery, hrv, rhr, sleepPerf, sleepHours, isRaceWeek, nextRace };
   }
 
-  function renderBriefing(text) {
-    const container = document.getElementById('briefingContent');
-    const lines = text.split('\n').map(l => l.replace(/^[-•*]\s*/, '').trim()).filter(Boolean);
-    container.innerHTML = '';
-    lines.forEach(line => {
-      const row = document.createElement('div');
-      row.className = 'briefing-bullet';
-      row.innerHTML = `<span class="dot"></span><span>${line}</span>`;
-      container.appendChild(row);
-    });
-  }
-
-  async function generateBriefing() {
-    const key = getAnthropicKey();
-    const container = document.getElementById('briefingContent');
-    if (!key) {
-      container.innerHTML = '<p class="placeholder-text">Save your Anthropic API key above first.</p>';
-      return;
-    }
-    container.innerHTML = '<p class="placeholder-text">Generating...</p>';
+  function buildSystemPrompt() {
     const ctx = gatherBriefingContext();
-
-    const userPrompt = `Generate today's briefing for Savva, a 15-year-old racing driver targeting GT4 in 2027.
+    return `You are a briefing assistant focused entirely on the live data below — not on long-term goals or who the user is. Use the data to ground your responses. The user may tell you how they're feeling; factor that in alongside the data rather than just restating it.
 
 Live data:
 - Recovery score: ${ctx.recovery !== null ? ctx.recovery + '%' : 'not connected'}
@@ -1013,7 +995,58 @@ Live data:
 - Race week: ${ctx.isRaceWeek ? 'yes' : 'no'}
 - Next FJC round: ${ctx.nextRace}
 
-Write a short, action-first daily briefing as bullet points. No preamble, no greeting, no sign-off. Each bullet should be a concrete action or observation tied to the data above.`;
+Keep replies short, direct, and action-first. No preamble, no sign-off.`;
+  }
+
+  const CHAT_HISTORY_KEY = 'briefing_chat_history';
+
+  function getChatHistory() {
+    try { return JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || '[]'); } catch (e) { return []; }
+  }
+
+  function saveChatHistory(history) {
+    localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(history));
+  }
+
+  function renderChat() {
+    const container = document.getElementById('chatMessages');
+    const history = getChatHistory();
+    container.innerHTML = '';
+    if (history.length === 0) {
+      container.innerHTML = '<p class="placeholder-text">Tell me how you\'re feeling, or ask about today\'s data.</p>';
+      return;
+    }
+    history.forEach(m => {
+      const row = document.createElement('div');
+      const isUser = m.role === 'user';
+      row.style.alignSelf = isUser ? 'flex-end' : 'flex-start';
+      row.style.maxWidth = '80%';
+      row.style.padding = '10px 14px';
+      row.style.borderRadius = '14px';
+      row.style.fontSize = '15px';
+      row.style.lineHeight = '1.4';
+      row.style.background = isUser ? 'var(--lime)' : '#eef2ec';
+      row.style.color = isUser ? '#15201a' : 'var(--ink)';
+      row.textContent = m.content;
+      container.appendChild(row);
+    });
+    container.scrollTop = container.scrollHeight;
+  }
+
+  async function sendChatMessage() {
+    const key = getAnthropicKey();
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text) return;
+    if (!key) {
+      alert('Save your Anthropic API key above first.');
+      return;
+    }
+    const history = getChatHistory();
+    history.push({ role: 'user', content: text });
+    saveChatHistory(history);
+    input.value = '';
+    renderChat();
 
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -1027,7 +1060,8 @@ Write a short, action-first daily briefing as bullet points. No preamble, no gre
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
           max_tokens: 500,
-          messages: [{ role: 'user', content: userPrompt }]
+          system: buildSystemPrompt(),
+          messages: history.map(m => ({ role: m.role, content: m.content }))
         })
       });
       if (!res.ok) {
@@ -1035,15 +1069,28 @@ Write a short, action-first daily briefing as bullet points. No preamble, no gre
         throw new Error('Anthropic API error: ' + res.status + ' ' + errText);
       }
       const data = await res.json();
-      const text = (data.content || []).map(c => c.text || '').join('\n');
-      renderBriefing(text);
+      const replyText = (data.content || []).map(c => c.text || '').join('\n');
+      history.push({ role: 'assistant', content: replyText });
+      saveChatHistory(history);
+      renderChat();
     } catch (err) {
       console.error(err);
-      container.innerHTML = '<p class="placeholder-text">Could not generate briefing — check your API key and try again.</p>';
+      history.push({ role: 'assistant', content: 'Something went wrong reaching the API — check your key and try again.' });
+      saveChatHistory(history);
+      renderChat();
     }
   }
 
-  document.getElementById('generateBriefingBtn').addEventListener('click', generateBriefing);
+  document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
+  document.getElementById('chatInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendChatMessage();
+  });
+  document.getElementById('chatResetBtn').addEventListener('click', () => {
+    saveChatHistory([]);
+    renderChat();
+  });
+
+  renderChat();
 </script>
 
 </body>
