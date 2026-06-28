@@ -650,7 +650,10 @@
     document.getElementById('connectCalendarBtn').textContent = 'Reconnect Google Calendar';
     try {
       const events = await fetchCalendarEvents(token.access_token);
-      const fjcEvents = events.filter(e => e.title.toUpperCase().includes('FJC'));
+      const fjcEvents = events.filter(e => {
+        const t = e.title.toUpperCase();
+        return t.includes('FJC') || t.includes('TESTING');
+      });
       localStorage.setItem('fjc_events_cache', JSON.stringify(fjcEvents));
       localStorage.setItem('all_events_cache', JSON.stringify(events));
       renderRacingTab(fjcEvents);
