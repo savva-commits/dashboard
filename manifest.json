@@ -4,8 +4,8 @@
   "description": "Racing driver life dashboard",
   "start_url": "/dashboard/",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#0a0a0a",
+  "background_color": "#f7faf5",
+  "theme_color": "#84cc16",
   "orientation": "portrait",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
