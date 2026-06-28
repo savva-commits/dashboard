@@ -230,6 +230,58 @@
   .tag-run{background:#fff4e0;color:var(--yellow);}
   .tag-bike{background:#e9f9ec;color:var(--green);}
   .tag-rest{background:#f1f1f1;color:var(--muted);}
+  .tag-golf{background:#f0fbf6;color:var(--teal);}
+  .tag-padel{background:#fff0f6;color:var(--coral);}
+
+  .suggestion-banner{
+    background:#eef9e3;
+    border:1px solid var(--lime);
+    border-radius:14px;
+    padding:14px 16px;
+    margin-bottom:12px;
+    font-size:15px;
+    font-weight:700;
+  }
+  .suggestion-banner .sub{
+    display:block;
+    font-weight:500;
+    font-size:13px;
+    color:var(--muted);
+    margin-top:2px;
+  }
+  .target-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px 0;
+    border-bottom:1px solid #eef2ec;
+  }
+  .target-row:last-child{border-bottom:none;}
+  .target-row.completed .desc{
+    text-decoration:line-through;
+    color:var(--muted);
+  }
+  .target-row.completed{opacity:0.55;}
+  .target-row.suggested{
+    background:#f7fcef;
+    margin:0 -18px;
+    padding:12px 18px;
+    border-radius:10px;
+  }
+  .target-row input[type=checkbox]{
+    width:22px;
+    height:22px;
+    flex-shrink:0;
+    accent-color:var(--lime);
+  }
+  .target-row .desc{font-size:15px;flex:1;}
+  .target-row .bonus-label{
+    font-size:11px;
+    font-weight:800;
+    text-transform:uppercase;
+    color:var(--coral);
+    margin-left:6px;
+  }
 
   .briefing-bullet{
     display:flex;
@@ -342,15 +394,10 @@
   <!-- TRAINING -->
   <section class="tab-panel" id="tab-training">
     <div id="raceWeekBanner"></div>
-    <div id="recoveryAdjustNote"></div>
     <div class="card" id="trainingPlanCard">
-      <h2>This Week</h2>
-      <p class="placeholder-text">Today's session auto-adjusts to your live WHOOP recovery score. Base plan: 2 gym, 20k run, 60k bike, 1 rest day.</p>
-      <div id="weekPlanList"></div>
-    </div>
-    <div class="card">
-      <h2>Session Difficulty Ranking</h2>
-      <div id="difficultyLegend"></div>
+      <h2>This Week's Targets</h2>
+      <div id="suggestionBanner"></div>
+      <div id="weeklyTargetList"></div>
     </div>
   </section>
 
@@ -602,82 +649,106 @@
 
   }
 
+  function getMonday(d) {
+    const date = new Date(d);
+    date.setHours(0, 0, 0, 0);
+    const day = date.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    date.setDate(date.getDate() + diff);
+    return date;
+  }
+
+  function currentWeekKey() {
+    return getMonday(new Date()).toISOString().slice(0, 10);
+  }
+
   function renderTrainingForRaceWeek(fjcEvents) {
-    const now = new Date();
-    const weekEnd = new Date(now.getTime() + 7 * 86400000);
-    const isRaceWeek = fjcEvents.some(e => e.start >= now && e.start <= weekEnd);
+    const monday = getMonday(new Date());
+    const sunday = new Date(monday.getTime() + 7 * 86400000 - 1);
+    const isRaceWeek = fjcEvents.some(e => e.start >= monday && e.start <= sunday);
     localStorage.setItem('is_race_week', isRaceWeek ? '1' : '0');
     updateTrainingPlan();
   }
 
-  // Hardest (7) to easiest (0). Used both to render the legend and to pick
-  // a same-or-lower intensity substitute for today's session on low recovery.
-  const SESSION_POOL = [
-    { key: 'bike40',     label: 'Bike 40k',                          tag: 'tag-bike',     tagLabel: 'Bike',     difficulty: 7 },
-    { key: 'gymFull',    label: 'Gym — strength (full intensity)',   tag: 'tag-gym',      tagLabel: 'Gym',      difficulty: 6 },
-    { key: 'run8',       label: 'Run 10k',                           tag: 'tag-run',      tagLabel: 'Run',      difficulty: 5 },
-    { key: 'bike20',     label: 'Bike 20k',                          tag: 'tag-bike',     tagLabel: 'Bike',     difficulty: 4 },
-    { key: 'gymReduced', label: 'Gym — reduced intensity',           tag: 'tag-gym',      tagLabel: 'Gym',      difficulty: 3 },
-    { key: 'run5',       label: 'Run 5k',                            tag: 'tag-run',      tagLabel: 'Run',      difficulty: 2 },
-    { key: 'recovery',   label: 'Recovery day — light walk/mobility', tag: 'tag-rest',    tagLabel: 'Recovery', difficulty: 1 },
-    { key: 'rest',       label: 'Rest day',                          tag: 'tag-rest',     tagLabel: 'Rest',     difficulty: 0 }
+  // Weekly targets — ticked off once each, not re-assigned per day.
+  const WEEKLY_TARGETS = [
+    { id: 'gym1',     label: 'Gym (strength)',                    tag: 'tag-gym',  tagLabel: 'Gym',   tier: 'hard' },
+    { id: 'gym2',     label: 'Gym (strength)',                    tag: 'tag-gym',  tagLabel: 'Gym',   tier: 'hard' },
+    { id: 'run5k',    label: 'Run 5k (hard effort)',               tag: 'tag-run',  tagLabel: 'Run',   tier: 'hard' },
+    { id: 'run7_5k',  label: 'Run 7.5k (moderate / threshold)',    tag: 'tag-run',  tagLabel: 'Run',   tier: 'moderate' },
+    { id: 'run10k',   label: 'Run 10k (easy / aerobic)',           tag: 'tag-run',  tagLabel: 'Run',   tier: 'easy' },
+    { id: 'cycle40k', label: 'Cycle 40k',                          tag: 'tag-bike', tagLabel: 'Bike',  tier: 'hard' },
+    { id: 'golf',     label: 'Golf / driving range',               tag: 'tag-golf', tagLabel: 'Golf',  tier: 'easy' },
+    { id: 'padel',    label: 'Padel',                              tag: 'tag-padel', tagLabel: 'Padel', tier: 'moderate', bonus: true },
+    { id: 'rest',     label: 'Rest day',                           tag: 'tag-rest', tagLabel: 'Rest',  tier: 'rest' }
   ];
-  const SESSION = {};
-  SESSION_POOL.forEach(s => SESSION[s.key] = s);
 
-  const WEEK_PLAN_KEYS = ['gymFull', 'run5', 'bike20', 'gymFull', 'run8', 'bike40', 'rest'];
-  const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-  function difficultyColor(d) {
-    if (d >= 6) return 'var(--red)';
-    if (d >= 4) return 'var(--coral)';
-    if (d >= 2) return 'var(--yellow)';
-    if (d >= 1) return 'var(--lime)';
-    return 'var(--muted)';
+  function getWeeklyState() {
+    const key = 'weekly_targets_' + currentWeekKey();
+    try { return { key, state: JSON.parse(localStorage.getItem(key) || '{}') }; } catch (e) { return { key, state: {} }; }
   }
 
-  function renderDifficultyLegend() {
-    const el = document.getElementById('difficultyLegend');
-    if (!el) return;
-    el.innerHTML = '';
-    SESSION_POOL.forEach(s => {
-      const row = document.createElement('div');
-      row.className = 'session-row';
-      row.innerHTML = `
-        <div class="day" style="width:34px;color:${difficultyColor(s.difficulty)};font-weight:800;">${s.difficulty}</div>
-        <div class="desc">${s.label}</div>
-        <span class="tag ${s.tag}">${s.tagLabel}</span>`;
-      el.appendChild(row);
-    });
+  function setTargetComplete(id, complete) {
+    const { key, state } = getWeeklyState();
+    state[id] = complete;
+    localStorage.setItem(key, JSON.stringify(state));
   }
 
-  // Picks today's session given the base plan and live recovery score:
-  // <34 -> recovery day (unless already resting), 34-67 -> reduced-intensity
-  // gym swap, >=68 -> base plan stands (hardest sessions are earned).
-  function effectiveSessionForDay(dayIndex, todayIndex, recovery) {
-    const base = SESSION[WEEK_PLAN_KEYS[dayIndex]];
-    if (dayIndex !== todayIndex || recovery === null) return base;
-    if (recovery < 34) return base.key === 'rest' ? base : SESSION.recovery;
-    if (recovery <= 67 && base.key === 'gymFull') return SESSION.gymReduced;
-    return base;
+  // Tier preference order by recovery band — first incomplete match wins.
+  function suggestNextTarget(recovery, state) {
+    const incomplete = WEEKLY_TARGETS.filter(t => !t.bonus && !state[t.id]);
+    if (incomplete.length === 0) {
+      const padel = WEEKLY_TARGETS.find(t => t.bonus);
+      return !state[padel.id] ? padel : null;
+    }
+    let order;
+    if (recovery === null) order = ['hard', 'moderate', 'easy', 'rest'];
+    else if (recovery >= 67) order = ['hard', 'moderate', 'easy', 'rest'];
+    else if (recovery >= 34) order = ['moderate', 'easy', 'hard', 'rest'];
+    else order = ['rest', 'easy', 'moderate', 'hard'];
+
+    // Red band: only rest or golf are appropriate suggestions.
+    if (recovery !== null && recovery < 34) {
+      const restOrGolf = incomplete.find(t => t.id === 'rest' || t.id === 'golf');
+      if (restOrGolf) return restOrGolf;
+    }
+    for (const tier of order) {
+      const match = incomplete.find(t => t.tier === tier);
+      if (match) return match;
+    }
+    return incomplete[0];
   }
 
-  function renderWeekPlan(recovery) {
-    const list = document.getElementById('weekPlanList');
+  function renderWeeklyTargets() {
+    const list = document.getElementById('weeklyTargetList');
+    const banner = document.getElementById('suggestionBanner');
     if (!list) return;
-    const todayIndex = (new Date().getDay() + 6) % 7;
+    const { state } = getWeeklyState();
+    const recoveryRaw = localStorage.getItem('latest_recovery_score');
+    const recovery = recoveryRaw !== null ? Number(recoveryRaw) : null;
+    const suggested = suggestNextTarget(recovery, state);
+
+    if (!suggested) {
+      banner.innerHTML = '<div class="suggestion-banner">All weekly targets complete — nice work.</div>';
+    } else {
+      const bandLabel = recovery === null ? 'No recovery data' : recovery >= 67 ? `Recovery ${recovery}% — green` : recovery >= 34 ? `Recovery ${recovery}% — yellow` : `Recovery ${recovery}% — red`;
+      banner.innerHTML = `<div class="suggestion-banner">Suggested today: ${suggested.label}<span class="sub">${bandLabel}</span></div>`;
+    }
+
     list.innerHTML = '';
-    DAY_LABELS.forEach((label, i) => {
-      const session = effectiveSessionForDay(i, todayIndex, recovery);
-      const isToday = i === todayIndex;
-      const adjusted = isToday && session.key !== WEEK_PLAN_KEYS[i];
+    WEEKLY_TARGETS.forEach(t => {
+      const completed = !!state[t.id];
+      const isSuggested = suggested && suggested.id === t.id;
       const row = document.createElement('div');
-      row.className = 'session-row';
-      row.style.background = isToday ? '#f4f9ef' : '';
+      row.className = 'target-row' + (completed ? ' completed' : '') + (isSuggested && !completed ? ' suggested' : '');
       row.innerHTML = `
-        <div class="day">${label}${isToday ? ' •' : ''}</div>
-        <div class="desc">${session.label}${adjusted ? ' <small style="color:var(--muted);">(adjusted)</small>' : ''}</div>
-        <span class="tag ${session.tag}">${session.tagLabel}</span>`;
+        <input type="checkbox" id="target_${t.id}" ${completed ? 'checked' : ''}>
+        <div class="desc">${t.label}${t.bonus ? '<span class="bonus-label">Bonus</span>' : ''}</div>
+        <span class="tag ${t.tag}">${t.tagLabel}</span>`;
+      row.querySelector('input').addEventListener('change', (e) => {
+        setTargetComplete(t.id, e.target.checked);
+        renderWeeklyTargets();
+      });
       list.appendChild(row);
     });
   }
@@ -685,32 +756,23 @@
   function updateTrainingPlan() {
     const banner = document.getElementById('raceWeekBanner');
     const planCard = document.getElementById('trainingPlanCard');
-    const adjustNote = document.getElementById('recoveryAdjustNote');
     const isRaceWeek = localStorage.getItem('is_race_week') === '1';
-    const recoveryRaw = localStorage.getItem('latest_recovery_score');
-    const recovery = recoveryRaw !== null ? Number(recoveryRaw) : null;
-
-    renderDifficultyLegend();
 
     if (isRaceWeek) {
-      banner.innerHTML = '<div class="race-week-banner">Race week — focus on rest and prep</div>';
+      banner.innerHTML = '<div class="race-week-banner">Race week — rest and prep only</div>';
       planCard.style.display = 'none';
       return;
     }
     banner.innerHTML = '';
     planCard.style.display = '';
-    renderWeekPlan(recovery);
-
-    if (recovery === null) {
-      adjustNote.innerHTML = '';
-    } else if (recovery < 34) {
-      adjustNote.innerHTML = '<div class="race-week-banner" style="background:var(--red);">Recovery low (' + recovery + '%) — today swapped to a recovery day</div>';
-    } else if (recovery <= 67) {
-      adjustNote.innerHTML = '<div class="race-week-banner" style="background:var(--yellow);color:#15201a;">Recovery moderate (' + recovery + '%) — gym days reduced to lower intensity</div>';
-    } else {
-      adjustNote.innerHTML = '';
-    }
+    renderWeeklyTargets();
   }
+
+  window.addEventListener('storage', (e) => {
+    if (e.key && (e.key.startsWith('weekly_targets_') || e.key === 'latest_recovery_score' || e.key === 'is_race_week')) {
+      updateTrainingPlan();
+    }
+  });
 
   async function loadCalendar() {
     const token = getStoredToken();
@@ -816,6 +878,10 @@
     storeWhoopToken(JSON.parse(bodyText));
   }
 
+  // Only a 400/401 from the refresh_token grant means the refresh token
+  // itself is dead — that's the one case the user actually needs to
+  // re-authorize for. Anything else (network blip, 5xx) is transient and
+  // should be retried silently without forcing a reconnect.
   async function refreshWhoopToken(refreshToken) {
     const res = await fetch(WHOOP_TOKEN_PROXY_URL, {
       method: 'POST',
@@ -823,7 +889,15 @@
       body: JSON.stringify({ grant_type: 'refresh_token', refresh_token: refreshToken })
     });
     const bodyText = await res.text();
-    if (!res.ok) throw new Error(`Token refresh failed (${res.status}): ${bodyText}`);
+    if (!res.ok) {
+      if (res.status === 400 || res.status === 401) {
+        localStorage.removeItem(WHOOP_TOKEN_KEY);
+        const err = new Error('WHOOP_SESSION_EXPIRED');
+        err.code = 'WHOOP_SESSION_EXPIRED';
+        throw err;
+      }
+      throw new Error(`Token refresh failed (${res.status}): ${bodyText}`);
+    }
     storeWhoopToken(JSON.parse(bodyText));
   }
 
@@ -874,7 +948,6 @@
   }
 
   async function loadWhoopData() {
-    document.getElementById('connectWhoopBtn').textContent = 'Reconnect WHOOP';
     try {
       const recoveryData = await whoopFetch('/v2/recovery?limit=14');
       const sleepData = await whoopFetch('/v2/activity/sleep?limit=1');
@@ -908,33 +981,64 @@
         document.getElementById('sleepHoursValue').innerHTML = hours + ' <small>h</small>';
       }
 
+      document.getElementById('connectWhoopBtn').textContent = 'Reconnect WHOOP';
       updateTrainingPlan();
       setWhoopDebug('');
     } catch (err) {
       console.error(err);
-      setWhoopDebug(err.message);
+      if (err.code === 'WHOOP_SESSION_EXPIRED') {
+        document.getElementById('connectWhoopBtn').textContent = 'Connect WHOOP';
+        setWhoopDebug('WHOOP session expired — tap Connect WHOOP to log in again.');
+      }
+      // Transient errors (network blip, momentary 5xx) are logged but not
+      // surfaced — the last successfully loaded data stays on screen and
+      // the next periodic refresh will quietly retry.
     }
   }
 
   document.getElementById('connectWhoopBtn').addEventListener('click', connectWhoop);
 
+  setInterval(() => {
+    if (getWhoopToken()) loadWhoopData();
+  }, 5 * 60 * 1000);
+
+  // OAuth codes are single-use — some mobile browsers fire the page load
+  // handler more than once on the redirect-back page, which would otherwise
+  // try to exchange the same code twice and fail the second time.
+  let whoopRedirectHandled = false;
+
   async function handleWhoopRedirect() {
+    if (whoopRedirectHandled) return false;
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const state = params.get('state');
     const errorParam = params.get('error');
+    // Normalize to the exact registered redirect path. Some mobile browsers
+    // (in particular when the OAuth redirect lands back outside an
+    // installed-PWA context) can hand back a URL whose path differs subtly
+    // (missing/extra trailing slash) — pin it so the app and any future
+    // reload always agree on where they are.
     if (errorParam) {
-      history.replaceState({}, '', window.location.pathname);
+      history.replaceState({}, '', '/dashboard/');
       setWhoopDebug('WHOOP authorization error: ' + errorParam);
       return false;
     }
     if (!code) return false;
     const savedState = localStorage.getItem(WHOOP_STATE_KEY);
-    history.replaceState({}, '', window.location.pathname);
-    if (!state || state !== savedState) {
+    history.replaceState({}, '', '/dashboard/');
+    // On some mobile browsers the OAuth redirect lands in a storage context
+    // that can't read back the state value saved before the redirect (e.g.
+    // a standalone home-screen PWA handing the redirect to the system
+    // browser). Treat a missing saved state as a warning, not a hard stop —
+    // the auth code itself is short-lived and single-use, so this is a low
+    // CSRF risk for a single-user personal app. A real mismatch (state
+    // present but wrong) still blocks, since that *is* a forged redirect.
+    if (state && savedState && state !== savedState) {
       setWhoopDebug('WHOOP state mismatch — try connecting again');
       return false;
     }
+    localStorage.removeItem(WHOOP_STATE_KEY);
+    whoopRedirectHandled = true;
     await exchangeWhoopCode(code);
     return true;
   }
