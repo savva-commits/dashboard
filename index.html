@@ -7,6 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#84cc16">
 <link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
     --bg:#f7faf5;
@@ -319,23 +320,24 @@
   <!-- RACING -->
   <section class="tab-panel" id="tab-racing">
     <div class="card countdown">
-      <div class="days">--</div>
-      <div class="label">Days to next round</div>
+      <div class="days" id="countdownDays">--</div>
+      <div class="label" id="countdownLabel">Days to next round</div>
     </div>
     <div class="card">
       <h2>Next Round</h2>
-      <p class="placeholder-text">Connect Google Calendar to load FJC race events.</p>
+      <p class="placeholder-text" id="nextRoundText">Connect Google Calendar to load FJC race events.</p>
     </div>
     <div class="card">
       <h2>Full Season</h2>
-      <p class="placeholder-text">Season list will appear here once Google Calendar is connected.</p>
+      <div id="seasonList"><p class="placeholder-text">Season list will appear here once Google Calendar is connected.</p></div>
     </div>
     <button class="btn secondary" id="connectCalendarBtn">Connect Google Calendar</button>
   </section>
 
   <!-- TRAINING -->
   <section class="tab-panel" id="tab-training">
-    <div class="card">
+    <div id="raceWeekBanner"></div>
+    <div class="card" id="trainingPlanCard">
       <h2>This Week</h2>
       <p class="placeholder-text">Plan adjusts to your live WHOOP recovery score once connected: 2 gym, 20k run, 60k bike, 1 rest day.</p>
       <div class="session-row">
@@ -419,6 +421,176 @@
       navigator.serviceWorker.register('sw.js');
     });
   }
+
+  // ---- Google Calendar sync ----
+  // Create an OAuth 2.0 Client ID (type: Web application) at
+  // https://console.cloud.google.com/apis/credentials
+  // Authorized JavaScript origin: https://savva-commits.github.io
+  // Authorized redirect URI:      https://savva-commits.github.io/dashboard/
+  // Then paste the Client ID below.
+  const GOOGLE_CLIENT_ID = ''; // <-- paste OAuth Client ID here
+  const CALENDAR_ID = 'savva@ssmotorsport.uk';
+  const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
+  const TOKEN_KEY = 'gcal_token';
+
+  function getStoredToken() {
+    try {
+      const raw = localStorage.getItem(TOKEN_KEY);
+      if (!raw) return null;
+      const token = JSON.parse(raw);
+      if (token.expires_at && Date.now() < token.expires_at) return token;
+      return null;
+    } catch (e) { return null; }
+  }
+
+  function storeToken(tokenResponse) {
+    const expires_at = Date.now() + (tokenResponse.expires_in * 1000) - 60000;
+    localStorage.setItem(TOKEN_KEY, JSON.stringify({
+      access_token: tokenResponse.access_token,
+      expires_at
+    }));
+  }
+
+  let tokenClient = null;
+  function initGoogleAuth() {
+    if (!GOOGLE_CLIENT_ID || !window.google || !google.accounts) return;
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: CALENDAR_SCOPE,
+      callback: (resp) => {
+        if (resp.error) { console.error('Google auth error', resp); return; }
+        storeToken(resp);
+        loadCalendar();
+      }
+    });
+  }
+
+  function connectGoogleCalendar() {
+    if (!GOOGLE_CLIENT_ID) {
+      alert('Google Calendar is not configured yet. Create an OAuth Client ID at console.cloud.google.com and add it to index.html.');
+      return;
+    }
+    if (!tokenClient) initGoogleAuth();
+    tokenClient.requestAccessToken({ prompt: getStoredToken() ? '' : 'consent' });
+  }
+
+  async function fetchCalendarEvents(accessToken) {
+    const timeMin = new Date();
+    timeMin.setDate(timeMin.getDate() - 30);
+    const params = new URLSearchParams({
+      timeMin: timeMin.toISOString(),
+      singleEvents: 'true',
+      orderBy: 'startTime',
+      maxResults: '250'
+    });
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDAR_ID)}/events?${params}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) {
+      if (res.status === 401) localStorage.removeItem(TOKEN_KEY);
+      throw new Error('Calendar fetch failed: ' + res.status);
+    }
+    const data = await res.json();
+    return (data.items || []).map(ev => ({
+      title: ev.summary || '(untitled)',
+      start: new Date(ev.start.dateTime || ev.start.date),
+      allDay: !ev.start.dateTime
+    }));
+  }
+
+  function daysUntil(date) {
+    const now = new Date();
+    const a = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const b = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    return Math.round((b - a) / 86400000);
+  }
+
+  function formatDate(d) {
+    return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+
+  function renderRacingTab(fjcEvents) {
+    const now = new Date();
+    const upcoming = fjcEvents.filter(e => e.start >= now);
+    const past = fjcEvents.filter(e => e.start < now);
+
+    const nextRoundText = document.getElementById('nextRoundText');
+    const countdownDays = document.getElementById('countdownDays');
+    const countdownLabel = document.getElementById('countdownLabel');
+    const seasonList = document.getElementById('seasonList');
+
+    if (upcoming.length === 0) {
+      nextRoundText.textContent = 'No upcoming FJC rounds found on the calendar.';
+      countdownDays.textContent = '--';
+      countdownLabel.textContent = 'Days to next round';
+    } else {
+      const next = upcoming[0];
+      const d = daysUntil(next.start);
+      countdownDays.textContent = d;
+      countdownLabel.textContent = d === 1 ? 'Day to ' + next.title : 'Days to ' + next.title;
+      nextRoundText.textContent = `${next.title} — ${formatDate(next.start)}`;
+    }
+
+    seasonList.innerHTML = '';
+    const all = [...past, ...upcoming];
+    if (all.length === 0) {
+      seasonList.innerHTML = '<p class="placeholder-text">No FJC events found on the calendar.</p>';
+    } else {
+      all.forEach(e => {
+        const row = document.createElement('div');
+        row.className = 'event-row' + (e.start < now ? ' faded' : '');
+        row.innerHTML = `<span class="name">${e.title}</span><span class="date">${formatDate(e.start)}</span>`;
+        seasonList.appendChild(row);
+      });
+    }
+  }
+
+  function renderTrainingForRaceWeek(fjcEvents) {
+    const now = new Date();
+    const weekEnd = new Date(now.getTime() + 7 * 86400000);
+    const isRaceWeek = fjcEvents.some(e => e.start >= now && e.start <= weekEnd);
+    const banner = document.getElementById('raceWeekBanner');
+    const planCard = document.getElementById('trainingPlanCard');
+    if (isRaceWeek) {
+      banner.innerHTML = '<div class="race-week-banner">Race week — focus on rest and prep</div>';
+      planCard.style.display = 'none';
+    } else {
+      banner.innerHTML = '';
+      planCard.style.display = '';
+    }
+  }
+
+  async function loadCalendar() {
+    const token = getStoredToken();
+    if (!token) {
+      document.getElementById('connectCalendarBtn').textContent = 'Connect Google Calendar';
+      return;
+    }
+    document.getElementById('connectCalendarBtn').textContent = 'Reconnect Google Calendar';
+    try {
+      const events = await fetchCalendarEvents(token.access_token);
+      const fjcEvents = events.filter(e => e.title.toUpperCase().includes('FJC'));
+      localStorage.setItem('fjc_events_cache', JSON.stringify(fjcEvents));
+      renderRacingTab(fjcEvents);
+      renderTrainingForRaceWeek(fjcEvents);
+    } catch (err) {
+      console.error(err);
+      const cached = localStorage.getItem('fjc_events_cache');
+      if (cached) {
+        const fjcEvents = JSON.parse(cached).map(e => ({ ...e, start: new Date(e.start) }));
+        renderRacingTab(fjcEvents);
+        renderTrainingForRaceWeek(fjcEvents);
+      }
+    }
+  }
+
+  document.getElementById('connectCalendarBtn').addEventListener('click', connectGoogleCalendar);
+
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      initGoogleAuth();
+      if (getStoredToken()) loadCalendar();
+    }, 300);
+  });
 </script>
 
 </body>
