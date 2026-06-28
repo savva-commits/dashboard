@@ -393,10 +393,19 @@
 
   <!-- BRIEFING -->
   <section class="tab-panel" id="tab-briefing">
+    <div class="card" id="anthropicKeyCard">
+      <h2>Anthropic API Key</h2>
+      <p class="placeholder-text">Stored only in this browser's localStorage — never committed to the repo. Get a key at console.anthropic.com.</p>
+      <input type="password" id="anthropicKeyInput" placeholder="sk-ant-..." style="width:100%;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;margin:10px 0;">
+      <button class="btn secondary" id="saveAnthropicKeyBtn">Save Key</button>
+    </div>
     <div class="card">
       <h2>Today's Briefing</h2>
-      <p class="placeholder-text">Connect WHOOP and Google Calendar to generate your daily briefing.</p>
+      <div id="briefingContent">
+        <p class="placeholder-text">Connect WHOOP and Google Calendar, save your API key above, then generate your briefing.</p>
+      </div>
     </div>
+    <button class="btn" id="generateBriefingBtn">Generate Briefing</button>
   </section>
 
 </main>
@@ -847,6 +856,105 @@
       if (justConnected || getWhoopToken()) loadWhoopData();
     }, 300);
   });
+
+  // ---- Daily Briefing (Anthropic API) ----
+  const ANTHROPIC_KEY_STORAGE = 'anthropic_api_key';
+
+  function getAnthropicKey() {
+    return localStorage.getItem(ANTHROPIC_KEY_STORAGE) || '';
+  }
+
+  document.getElementById('saveAnthropicKeyBtn').addEventListener('click', () => {
+    const val = document.getElementById('anthropicKeyInput').value.trim();
+    if (!val) return;
+    localStorage.setItem(ANTHROPIC_KEY_STORAGE, val);
+    document.getElementById('anthropicKeyInput').value = '';
+    document.getElementById('anthropicKeyInput').placeholder = 'Key saved ✓ — sk-ant-...';
+  });
+
+  function gatherBriefingContext() {
+    const recovery = localStorage.getItem('latest_recovery_score');
+    const hrv = document.getElementById('hrvValue').textContent.trim();
+    const rhr = document.getElementById('rhrValue').textContent.trim();
+    const sleepPerf = document.getElementById('sleepPerfValue').textContent.trim();
+    const sleepHours = document.getElementById('sleepHoursValue').textContent.trim();
+    const isRaceWeek = localStorage.getItem('is_race_week') === '1';
+
+    let nextRace = 'No upcoming FJC round on the calendar';
+    try {
+      const fjc = JSON.parse(localStorage.getItem('fjc_events_cache') || '[]').map(e => ({ ...e, start: new Date(e.start) }));
+      const now = new Date();
+      const upcoming = fjc.filter(e => e.start >= now).sort((a, b) => a.start - b.start);
+      if (upcoming.length) nextRace = `${upcoming[0].title} on ${formatDate(upcoming[0].start)} (${daysUntil(upcoming[0].start)} days away)`;
+    } catch (e) {}
+
+    return { recovery, hrv, rhr, sleepPerf, sleepHours, isRaceWeek, nextRace };
+  }
+
+  function renderBriefing(text) {
+    const container = document.getElementById('briefingContent');
+    const lines = text.split('\n').map(l => l.replace(/^[-•*]\s*/, '').trim()).filter(Boolean);
+    container.innerHTML = '';
+    lines.forEach(line => {
+      const row = document.createElement('div');
+      row.className = 'briefing-bullet';
+      row.innerHTML = `<span class="dot"></span><span>${line}</span>`;
+      container.appendChild(row);
+    });
+  }
+
+  async function generateBriefing() {
+    const key = getAnthropicKey();
+    const container = document.getElementById('briefingContent');
+    if (!key) {
+      container.innerHTML = '<p class="placeholder-text">Save your Anthropic API key above first.</p>';
+      return;
+    }
+    container.innerHTML = '<p class="placeholder-text">Generating...</p>';
+    const ctx = gatherBriefingContext();
+
+    const userPrompt = `Generate today's briefing for Savva, a 15-year-old racing driver targeting GT4 in 2027.
+
+Live data:
+- Recovery score: ${ctx.recovery !== null ? ctx.recovery + '%' : 'not connected'}
+- HRV: ${ctx.hrv}
+- RHR: ${ctx.rhr}
+- Sleep performance: ${ctx.sleepPerf}
+- Sleep duration: ${ctx.sleepHours}
+- Race week: ${ctx.isRaceWeek ? 'yes' : 'no'}
+- Next FJC round: ${ctx.nextRace}
+
+Write a short, action-first daily briefing as bullet points. No preamble, no greeting, no sign-off. Each bullet should be a concrete action or observation tied to the data above.`;
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 500,
+          messages: [{ role: 'user', content: userPrompt }]
+        })
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error('Anthropic API error: ' + res.status + ' ' + errText);
+      }
+      const data = await res.json();
+      const text = (data.content || []).map(c => c.text || '').join('\n');
+      renderBriefing(text);
+    } catch (err) {
+      console.error(err);
+      container.innerHTML = '<p class="placeholder-text">Could not generate briefing — check your API key and try again.</p>';
+    }
+  }
+
+  document.getElementById('generateBriefingBtn').addEventListener('click', generateBriefing);
 </script>
 
 </body>
