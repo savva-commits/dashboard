@@ -849,9 +849,9 @@
   }
 
   function recoveryColor(score) {
-    if (score >= 67) return 'var(--green)';
-    if (score >= 34) return 'var(--amber)';
-    return 'var(--red)';
+    if (score >= 67) return '#16a34a';
+    if (score >= 34) return '#eab308';
+    return '#ef4444';
   }
 
   function drawTrendChart(scores) {
@@ -861,10 +861,15 @@
     ctx.clearRect(0, 0, w, h);
     if (!scores.length) return;
     const barW = w / scores.length;
+    ctx.font = '10px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
     scores.forEach((s, i) => {
-      const barH = (s / 100) * (h - 10);
+      const barH = (s / 100) * (h - 22);
+      const x = i * barW + barW / 2;
       ctx.fillStyle = recoveryColor(s);
       ctx.fillRect(i * barW + 2, h - barH, barW - 4, barH);
+      ctx.fillStyle = '#15201a';
+      ctx.fillText(s + '%', x, h - barH - 4);
     });
   }
 
