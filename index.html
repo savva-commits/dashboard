@@ -286,32 +286,32 @@
       <div class="recovery-ring" id="recoveryRing" style="--pct:0;">
         <div><span class="num" id="recoveryNum">--</span><span class="pct">%</span></div>
       </div>
-      <div class="recovery-label">Recovery — connect WHOOP</div>
+      <div class="recovery-label" id="recoveryLabel">Recovery — connect WHOOP</div>
     </div>
 
     <div class="metric-grid">
       <div class="metric-card accent-teal">
         <div class="label">HRV</div>
-        <div class="value">-- <small>ms</small></div>
+        <div class="value" id="hrvValue">-- <small>ms</small></div>
       </div>
       <div class="metric-card accent-coral">
         <div class="label">RHR</div>
-        <div class="value">-- <small>bpm</small></div>
+        <div class="value" id="rhrValue">-- <small>bpm</small></div>
       </div>
       <div class="metric-card accent-yellow">
         <div class="label">Sleep Perf</div>
-        <div class="value">-- <small>%</small></div>
+        <div class="value" id="sleepPerfValue">-- <small>%</small></div>
       </div>
       <div class="metric-card accent-lime">
         <div class="label">Sleep</div>
-        <div class="value">-- <small>h</small></div>
+        <div class="value" id="sleepHoursValue">-- <small>h</small></div>
       </div>
     </div>
 
     <div class="card">
       <h2>14-Day Recovery Trend</h2>
       <canvas id="trendChart" width="500" height="120"></canvas>
-      <p class="placeholder-text" style="margin-top:8px;">Connect WHOOP to see your trend.</p>
+      <p class="placeholder-text" id="trendPlaceholder" style="margin-top:8px;">Connect WHOOP to see your trend.</p>
     </div>
 
     <button class="btn" id="connectWhoopBtn">Connect WHOOP</button>
@@ -341,6 +341,7 @@
   <!-- TRAINING -->
   <section class="tab-panel" id="tab-training">
     <div id="raceWeekBanner"></div>
+    <div id="recoveryAdjustNote"></div>
     <div class="card" id="trainingPlanCard">
       <h2>This Week</h2>
       <p class="placeholder-text">Plan adjusts to your live WHOOP recovery score once connected: 2 gym, 20k run, 60k bike, 1 rest day.</p>
@@ -596,14 +597,36 @@
     const now = new Date();
     const weekEnd = new Date(now.getTime() + 7 * 86400000);
     const isRaceWeek = fjcEvents.some(e => e.start >= now && e.start <= weekEnd);
+    localStorage.setItem('is_race_week', isRaceWeek ? '1' : '0');
+    updateTrainingPlan();
+  }
+
+  function updateTrainingPlan() {
     const banner = document.getElementById('raceWeekBanner');
     const planCard = document.getElementById('trainingPlanCard');
+    const adjustNote = document.getElementById('recoveryAdjustNote');
+    const isRaceWeek = localStorage.getItem('is_race_week') === '1';
+    const recoveryRaw = localStorage.getItem('latest_recovery_score');
+    const recovery = recoveryRaw !== null ? Number(recoveryRaw) : null;
+
     if (isRaceWeek) {
       banner.innerHTML = '<div class="race-week-banner">Race week — focus on rest and prep</div>';
       planCard.style.display = 'none';
+      return;
+    }
+    banner.innerHTML = '';
+    planCard.style.display = '';
+
+    if (recovery === null) {
+      adjustNote.innerHTML = '';
+      return;
+    }
+    if (recovery < 34) {
+      adjustNote.innerHTML = '<div class="race-week-banner" style="background:var(--red);">Recovery low (' + recovery + '%) — swap today for a recovery day</div>';
+    } else if (recovery <= 67) {
+      adjustNote.innerHTML = '<div class="race-week-banner" style="background:var(--yellow);color:#15201a;">Recovery moderate (' + recovery + '%) — if today is a gym day, reduce intensity</div>';
     } else {
-      banner.innerHTML = '';
-      planCard.style.display = '';
+      adjustNote.innerHTML = '';
     }
   }
 
@@ -640,10 +663,188 @@
 
   document.getElementById('connectCalendarBtn').addEventListener('click', connectGoogleCalendar);
 
+  // ---- WHOOP sync ----
+  // NOTE: this is a static, client-only site (GitHub Pages), so the WHOOP
+  // client secret below is embedded in plain JS and visible to anyone who
+  // views source on this page. That's an accepted tradeoff for a personal
+  // hobby dashboard — it is NOT safe for a multi-user or production app.
+  const WHOOP_CLIENT_ID = '2e44105f-aa13-4d63-a679-b8397ec597c8';
+  const WHOOP_CLIENT_SECRET = '9b523dff96e3241d713e0ac726e39b448f93e6fd2947692a209ab49ef988d07b';
+  const WHOOP_REDIRECT_URI = 'https://savva-commits.github.io/dashboard/';
+  const WHOOP_SCOPES = 'read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement offline';
+  const WHOOP_AUTH_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth';
+  const WHOOP_TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
+  const WHOOP_API_BASE = 'https://api.prod.whoop.com/developer';
+  const WHOOP_TOKEN_KEY = 'whoop_token';
+  const WHOOP_STATE_KEY = 'whoop_oauth_state';
+
+  function randomState() {
+    return Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function connectWhoop() {
+    const state = randomState();
+    localStorage.setItem(WHOOP_STATE_KEY, state);
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: WHOOP_CLIENT_ID,
+      redirect_uri: WHOOP_REDIRECT_URI,
+      scope: WHOOP_SCOPES,
+      state
+    });
+    window.location.href = `${WHOOP_AUTH_URL}?${params}`;
+  }
+
+  function getWhoopToken() {
+    try {
+      const raw = localStorage.getItem(WHOOP_TOKEN_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  function storeWhoopToken(t) {
+    localStorage.setItem(WHOOP_TOKEN_KEY, JSON.stringify({
+      access_token: t.access_token,
+      refresh_token: t.refresh_token,
+      expires_at: Date.now() + (t.expires_in * 1000) - 60000
+    }));
+  }
+
+  async function exchangeWhoopCode(code) {
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      client_id: WHOOP_CLIENT_ID,
+      client_secret: WHOOP_CLIENT_SECRET,
+      redirect_uri: WHOOP_REDIRECT_URI
+    });
+    const res = await fetch(WHOOP_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body
+    });
+    if (!res.ok) throw new Error('WHOOP token exchange failed: ' + res.status);
+    storeWhoopToken(await res.json());
+  }
+
+  async function refreshWhoopToken(refreshToken) {
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: WHOOP_CLIENT_ID,
+      client_secret: WHOOP_CLIENT_SECRET,
+      scope: WHOOP_SCOPES
+    });
+    const res = await fetch(WHOOP_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body
+    });
+    if (!res.ok) throw new Error('WHOOP token refresh failed: ' + res.status);
+    storeWhoopToken(await res.json());
+  }
+
+  async function whoopFetch(path) {
+    let token = getWhoopToken();
+    if (!token) throw new Error('not connected');
+    if (Date.now() >= token.expires_at) {
+      await refreshWhoopToken(token.refresh_token);
+      token = getWhoopToken();
+    }
+    const res = await fetch(WHOOP_API_BASE + path, {
+      headers: { Authorization: `Bearer ${token.access_token}` }
+    });
+    if (res.status === 401) {
+      await refreshWhoopToken(token.refresh_token);
+      token = getWhoopToken();
+      return fetch(WHOOP_API_BASE + path, { headers: { Authorization: `Bearer ${token.access_token}` } }).then(r => r.json());
+    }
+    if (!res.ok) throw new Error('WHOOP API error: ' + res.status);
+    return res.json();
+  }
+
+  function recoveryColor(score) {
+    if (score >= 67) return 'var(--green)';
+    if (score >= 34) return 'var(--amber)';
+    return 'var(--red)';
+  }
+
+  function drawTrendChart(scores) {
+    const canvas = document.getElementById('trendChart');
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    if (!scores.length) return;
+    const barW = w / scores.length;
+    scores.forEach((s, i) => {
+      const barH = (s / 100) * (h - 10);
+      ctx.fillStyle = recoveryColor(s);
+      ctx.fillRect(i * barW + 2, h - barH, barW - 4, barH);
+    });
+  }
+
+  async function loadWhoopData() {
+    document.getElementById('connectWhoopBtn').textContent = 'Reconnect WHOOP';
+    try {
+      const recoveryData = await whoopFetch('/v1/recovery?limit=14');
+      const sleepData = await whoopFetch('/v1/activity/sleep?limit=1');
+
+      const records = (recoveryData.records || []).slice().reverse();
+      const latest = records[records.length - 1];
+
+      if (latest && latest.score) {
+        const score = Math.round(latest.score.recovery_score);
+        localStorage.setItem('latest_recovery_score', String(score));
+        document.getElementById('recoveryNum').textContent = score;
+        document.getElementById('recoveryRing').style.setProperty('--pct', score);
+        document.getElementById('recoveryRing').style.setProperty('--ring-color', recoveryColor(score));
+        document.getElementById('recoveryLabel').textContent =
+          score >= 67 ? 'Recovery — green' : score >= 34 ? 'Recovery — yellow' : 'Recovery — red';
+        document.getElementById('hrvValue').innerHTML = Math.round(latest.score.hrv_rmssd_milli) + ' <small>ms</small>';
+        document.getElementById('rhrValue').innerHTML = Math.round(latest.score.resting_heart_rate) + ' <small>bpm</small>';
+      }
+
+      const trendScores = records.filter(r => r.score).map(r => Math.round(r.score.recovery_score));
+      drawTrendChart(trendScores);
+      document.getElementById('trendPlaceholder').style.display = trendScores.length ? 'none' : '';
+
+      const sleepRecord = (sleepData.records || [])[0];
+      if (sleepRecord && sleepRecord.score) {
+        const perf = Math.round(sleepRecord.score.sleep_performance_percentage);
+        document.getElementById('sleepPerfValue').innerHTML = perf + ' <small>%</small>';
+        const stages = sleepRecord.score.stage_summary || {};
+        const totalMs = (stages.total_light_sleep_time_milli || 0) + (stages.total_slow_wave_sleep_time_milli || 0) + (stages.total_rem_sleep_time_milli || 0);
+        const hours = (totalMs / 3600000).toFixed(1);
+        document.getElementById('sleepHoursValue').innerHTML = hours + ' <small>h</small>';
+      }
+
+      updateTrainingPlan();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  document.getElementById('connectWhoopBtn').addEventListener('click', connectWhoop);
+
+  async function handleWhoopRedirect() {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const state = params.get('state');
+    if (!code) return false;
+    const savedState = localStorage.getItem(WHOOP_STATE_KEY);
+    history.replaceState({}, '', window.location.pathname);
+    if (!state || state !== savedState) { console.error('WHOOP state mismatch'); return false; }
+    await exchangeWhoopCode(code);
+    return true;
+  }
+
   window.addEventListener('load', () => {
-    setTimeout(() => {
+    setTimeout(async () => {
       initGoogleAuth();
       if (getStoredToken()) loadCalendar();
+
+      const justConnected = await handleWhoopRedirect().catch(err => { console.error(err); return false; });
+      if (justConnected || getWhoopToken()) loadWhoopData();
     }, 300);
   });
 </script>
