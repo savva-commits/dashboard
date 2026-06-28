@@ -34,15 +34,17 @@ module.exports = async (req, res) => {
     return;
   }
 
+  const upstreamUrl = WHOOP_API_BASE + path;
   try {
-    const whoopRes = await fetch(WHOOP_API_BASE + path, {
+    const whoopRes = await fetch(upstreamUrl, {
       headers: { Authorization: authHeader }
     });
     const text = await whoopRes.text();
     let data;
     try { data = JSON.parse(text); } catch (e) { data = { error: text || 'empty_response' }; }
+    data._debug_upstream_url = upstreamUrl;
     res.status(whoopRes.status).json(data);
   } catch (err) {
-    res.status(502).json({ error: 'whoop_data_proxy_failed', detail: String(err) });
+    res.status(502).json({ error: 'whoop_data_proxy_failed', detail: String(err), _debug_upstream_url: upstreamUrl });
   }
 };
