@@ -38,9 +38,11 @@ module.exports = async (req, res) => {
     const whoopRes = await fetch(WHOOP_API_BASE + path, {
       headers: { Authorization: authHeader }
     });
-    const data = await whoopRes.json();
+    const text = await whoopRes.text();
+    let data;
+    try { data = JSON.parse(text); } catch (e) { data = { error: text || 'empty_response' }; }
     res.status(whoopRes.status).json(data);
   } catch (err) {
-    res.status(502).json({ error: 'whoop_data_proxy_failed' });
+    res.status(502).json({ error: 'whoop_data_proxy_failed', detail: String(err) });
   }
 };

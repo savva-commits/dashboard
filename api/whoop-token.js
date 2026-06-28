@@ -53,9 +53,11 @@ module.exports = async (req, res) => {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params
     });
-    const data = await whoopRes.json();
+    const text = await whoopRes.text();
+    let data;
+    try { data = JSON.parse(text); } catch (e) { data = { error: text || 'empty_response' }; }
     res.status(whoopRes.status).json(data);
   } catch (err) {
-    res.status(502).json({ error: 'whoop_token_proxy_failed' });
+    res.status(502).json({ error: 'whoop_token_proxy_failed', detail: String(err) });
   }
 };
