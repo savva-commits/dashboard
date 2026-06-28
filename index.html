@@ -454,7 +454,16 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js');
+      navigator.serviceWorker.register('sw.js').then(reg => reg.update());
+    });
+    // Once a new service worker takes over (e.g. after this deploy), reload
+    // once so the page actually picks up the new code instead of continuing
+    // to run whatever version happened to be loaded when it activated.
+    let swRefreshed = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (swRefreshed) return;
+      swRefreshed = true;
+      window.location.reload();
     });
   }
 
