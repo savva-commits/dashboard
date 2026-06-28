@@ -498,7 +498,7 @@
       callback: (resp) => {
         if (resp.error) { console.error('Google auth error', resp); return; }
         storeToken(resp);
-        loadCalendar();
+        loadCalendar(true);
       }
     });
   }
@@ -774,20 +774,40 @@
     }
   });
 
-  async function loadCalendar() {
+  function reviveEventDates(cached) {
+    return JSON.parse(cached).map(e => ({ ...e, start: new Date(e.start), end: e.end ? new Date(e.end) : new Date(e.start) }));
+  }
+
+  // Race calendar and lesson timetable don't change minute to minute, so
+  // once today's pull has happened there's no need to keep re-fetching on
+  // every reload — reuse the cache until the next calendar day, or until
+  // the user explicitly reconnects.
+  async function loadCalendar(force) {
     const token = getStoredToken();
     if (!token) {
       document.getElementById('connectCalendarBtn').textContent = 'Connect Google Calendar';
       return;
     }
     document.getElementById('connectCalendarBtn').textContent = 'Reconnect Google Calendar';
+
+    const cacheDate = localStorage.getItem('calendar_cache_date');
+    const cachedFjcRaw = localStorage.getItem('fjc_events_cache');
+    const cachedLessonsRaw = localStorage.getItem('lesson_events_cache');
+    if (!force && cacheDate === todayKey() && cachedFjcRaw && cachedLessonsRaw) {
+      const fjcEvents = reviveEventDates(cachedFjcRaw);
+      const lessonEvents = reviveEventDates(cachedLessonsRaw);
+      renderRacingTab(fjcEvents);
+      renderTrainingForRaceWeek(fjcEvents);
+      renderNextSchoolDay(lessonEvents);
+      return;
+    }
+
     try {
       const events = await fetchCalendarEvents(token.access_token, CALENDAR_ID);
       const fjcEvents = events.filter(e => {
         const t = e.title.toUpperCase();
         return t.includes('FJC') || t.includes('TESTING');
       });
-      localStorage.setItem('fjc_events_cache', JSON.stringify(fjcEvents));
       renderRacingTab(fjcEvents);
       renderTrainingForRaceWeek(fjcEvents);
 
@@ -797,20 +817,20 @@
         if (lessonsCalendarId) localStorage.setItem(LESSONS_CALENDAR_ID_KEY, lessonsCalendarId);
       }
       const lessonEvents = lessonsCalendarId ? await fetchCalendarEvents(token.access_token, lessonsCalendarId) : [];
-      localStorage.setItem('lesson_events_cache', JSON.stringify(lessonEvents));
       renderNextSchoolDay(lessonEvents);
+
+      localStorage.setItem('fjc_events_cache', JSON.stringify(fjcEvents));
+      localStorage.setItem('lesson_events_cache', JSON.stringify(lessonEvents));
+      localStorage.setItem('calendar_cache_date', todayKey());
     } catch (err) {
       console.error(err);
-      const cachedFjc = localStorage.getItem('fjc_events_cache');
-      const cachedLessons = localStorage.getItem('lesson_events_cache');
-      if (cachedFjc) {
-        const fjcEvents = JSON.parse(cachedFjc).map(e => ({ ...e, start: new Date(e.start) }));
+      if (cachedFjcRaw) {
+        const fjcEvents = reviveEventDates(cachedFjcRaw);
         renderRacingTab(fjcEvents);
         renderTrainingForRaceWeek(fjcEvents);
       }
-      if (cachedLessons) {
-        const lessonEvents = JSON.parse(cachedLessons).map(e => ({ ...e, start: new Date(e.start) }));
-        renderNextSchoolDay(lessonEvents);
+      if (cachedLessonsRaw) {
+        renderNextSchoolDay(reviveEventDates(cachedLessonsRaw));
       }
     }
   }
@@ -947,7 +967,45 @@
     });
   }
 
-  async function loadWhoopData() {
+  function todayKey() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  const WHOOP_DATA_CACHE_KEY = 'whoop_data_cache';
+
+  function getWhoopDataCache() {
+    try { return JSON.parse(localStorage.getItem(WHOOP_DATA_CACHE_KEY) || 'null'); } catch (e) { return null; }
+  }
+
+  function applyWhoopDataToUI(d) {
+    if (d.score !== null && d.score !== undefined) {
+      document.getElementById('recoveryNum').textContent = d.score;
+      document.getElementById('recoveryRing').style.setProperty('--pct', d.score);
+      document.getElementById('recoveryRing').style.setProperty('--ring-color', recoveryColor(d.score));
+      document.getElementById('recoveryLabel').textContent =
+        d.score >= 67 ? 'Recovery — green' : d.score >= 34 ? 'Recovery — yellow' : 'Recovery — red';
+    }
+    if (d.hrv !== null) document.getElementById('hrvValue').innerHTML = d.hrv + ' <small>ms</small>';
+    if (d.rhr !== null) document.getElementById('rhrValue').innerHTML = d.rhr + ' <small>bpm</small>';
+    if (d.sleepPerf !== null) document.getElementById('sleepPerfValue').innerHTML = d.sleepPerf + ' <small>%</small>';
+    if (d.sleepHours !== null) document.getElementById('sleepHoursValue').innerHTML = d.sleepHours + ' <small>h</small>';
+    drawTrendChart(d.trendScores || []);
+    document.getElementById('trendPlaceholder').style.display = (d.trendScores || []).length ? 'none' : '';
+    if (d.score !== null && d.score !== undefined) localStorage.setItem('latest_recovery_score', String(d.score));
+    document.getElementById('connectWhoopBtn').textContent = 'Reconnect WHOOP';
+    updateTrainingPlan();
+  }
+
+  // WHOOP recovery/sleep are computed once per day and don't change again
+  // until the next sleep cycle, so once today's data is cached there's no
+  // need to keep hitting the API on every reload — just reuse the cache.
+  async function loadWhoopData(force) {
+    const cache = getWhoopDataCache();
+    if (!force && cache && cache.date === todayKey()) {
+      applyWhoopDataToUI(cache);
+      setWhoopDebug('');
+      return;
+    }
     try {
       const recoveryData = await whoopFetch('/v2/recovery?limit=14');
       const sleepData = await whoopFetch('/v2/activity/sleep?limit=1');
@@ -955,49 +1013,45 @@
       const records = (recoveryData.records || []).slice().reverse();
       const latest = records[records.length - 1];
 
-      if (latest && latest.score) {
-        const score = Math.round(latest.score.recovery_score);
-        localStorage.setItem('latest_recovery_score', String(score));
-        document.getElementById('recoveryNum').textContent = score;
-        document.getElementById('recoveryRing').style.setProperty('--pct', score);
-        document.getElementById('recoveryRing').style.setProperty('--ring-color', recoveryColor(score));
-        document.getElementById('recoveryLabel').textContent =
-          score >= 67 ? 'Recovery — green' : score >= 34 ? 'Recovery — yellow' : 'Recovery — red';
-        document.getElementById('hrvValue').innerHTML = Math.round(latest.score.hrv_rmssd_milli) + ' <small>ms</small>';
-        document.getElementById('rhrValue').innerHTML = Math.round(latest.score.resting_heart_rate) + ' <small>bpm</small>';
-      }
+      const data = { date: todayKey(), score: null, hrv: null, rhr: null, sleepPerf: null, sleepHours: null, trendScores: [] };
 
-      const trendScores = records.filter(r => r.score).map(r => Math.round(r.score.recovery_score));
-      drawTrendChart(trendScores);
-      document.getElementById('trendPlaceholder').style.display = trendScores.length ? 'none' : '';
+      if (latest && latest.score) {
+        data.score = Math.round(latest.score.recovery_score);
+        data.hrv = Math.round(latest.score.hrv_rmssd_milli);
+        data.rhr = Math.round(latest.score.resting_heart_rate);
+      }
+      data.trendScores = records.filter(r => r.score).map(r => Math.round(r.score.recovery_score));
 
       const sleepRecord = (sleepData.records || [])[0];
       if (sleepRecord && sleepRecord.score) {
-        const perf = Math.round(sleepRecord.score.sleep_performance_percentage);
-        document.getElementById('sleepPerfValue').innerHTML = perf + ' <small>%</small>';
+        data.sleepPerf = Math.round(sleepRecord.score.sleep_performance_percentage);
         const stages = sleepRecord.score.stage_summary || {};
         const totalMs = (stages.total_light_sleep_time_milli || 0) + (stages.total_slow_wave_sleep_time_milli || 0) + (stages.total_rem_sleep_time_milli || 0);
-        const hours = (totalMs / 3600000).toFixed(1);
-        document.getElementById('sleepHoursValue').innerHTML = hours + ' <small>h</small>';
+        data.sleepHours = (totalMs / 3600000).toFixed(1);
       }
 
-      document.getElementById('connectWhoopBtn').textContent = 'Reconnect WHOOP';
-      updateTrainingPlan();
+      localStorage.setItem(WHOOP_DATA_CACHE_KEY, JSON.stringify(data));
+      applyWhoopDataToUI(data);
       setWhoopDebug('');
     } catch (err) {
       console.error(err);
       if (err.code === 'WHOOP_SESSION_EXPIRED') {
         document.getElementById('connectWhoopBtn').textContent = 'Connect WHOOP';
         setWhoopDebug('WHOOP session expired — tap Connect WHOOP to log in again.');
+        return;
       }
       // Transient errors (network blip, momentary 5xx) are logged but not
-      // surfaced — the last successfully loaded data stays on screen and
-      // the next periodic refresh will quietly retry.
+      // surfaced — fall back to whatever's cached, even if from an earlier
+      // day, so the screen never just goes blank.
+      if (cache) applyWhoopDataToUI(cache);
     }
   }
 
   document.getElementById('connectWhoopBtn').addEventListener('click', connectWhoop);
 
+  // Only matters before today's data has been fetched at all (e.g. WHOOP
+  // posts the recovery score a bit after the app is first opened) — once
+  // cached for today, loadWhoopData() below is a no-op against the network.
   setInterval(() => {
     if (getWhoopToken()) loadWhoopData();
   }, 5 * 60 * 1000);
@@ -1053,7 +1107,7 @@
         setWhoopDebug(err.message);
         return false;
       });
-      if (justConnected || getWhoopToken()) loadWhoopData();
+      if (justConnected || getWhoopToken()) loadWhoopData(justConnected);
     }, 300);
   });
 
