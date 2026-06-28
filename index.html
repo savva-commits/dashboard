@@ -678,16 +678,14 @@
   document.getElementById('connectCalendarBtn').addEventListener('click', connectGoogleCalendar);
 
   // ---- WHOOP sync ----
-  // NOTE: this is a static, client-only site (GitHub Pages), so the WHOOP
-  // client secret below is embedded in plain JS and visible to anyone who
-  // views source on this page. That's an accepted tradeoff for a personal
-  // hobby dashboard — it is NOT safe for a multi-user or production app.
+  // Token exchange/refresh is proxied through a Vercel serverless function
+  // (see /api/whoop-token.js) so the client secret stays server-side and
+  // never reaches the browser. Set this to your deployed Vercel URL.
   const WHOOP_CLIENT_ID = '2e44105f-aa13-4d63-a679-b8397ec597c8';
-  const WHOOP_CLIENT_SECRET = '9b523dff96e3241d713e0ac726e39b448f93e6fd2947692a209ab49ef988d07b';
   const WHOOP_REDIRECT_URI = 'https://savva-commits.github.io/dashboard/';
   const WHOOP_SCOPES = 'read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement offline';
   const WHOOP_AUTH_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth';
-  const WHOOP_TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
+  const WHOOP_TOKEN_PROXY_URL = 'https://YOUR-VERCEL-PROJECT.vercel.app/api/whoop-token'; // <-- set after deploying
   const WHOOP_API_BASE = 'https://api.prod.whoop.com/developer';
   const WHOOP_TOKEN_KEY = 'whoop_token';
   const WHOOP_STATE_KEY = 'whoop_oauth_state';
@@ -725,34 +723,20 @@
   }
 
   async function exchangeWhoopCode(code) {
-    const body = new URLSearchParams({
-      grant_type: 'authorization_code',
-      code,
-      client_id: WHOOP_CLIENT_ID,
-      client_secret: WHOOP_CLIENT_SECRET,
-      redirect_uri: WHOOP_REDIRECT_URI
-    });
-    const res = await fetch(WHOOP_TOKEN_URL, {
+    const res = await fetch(WHOOP_TOKEN_PROXY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ grant_type: 'authorization_code', code })
     });
     if (!res.ok) throw new Error('WHOOP token exchange failed: ' + res.status);
     storeWhoopToken(await res.json());
   }
 
   async function refreshWhoopToken(refreshToken) {
-    const body = new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-      client_id: WHOOP_CLIENT_ID,
-      client_secret: WHOOP_CLIENT_SECRET,
-      scope: WHOOP_SCOPES
-    });
-    const res = await fetch(WHOOP_TOKEN_URL, {
+    const res = await fetch(WHOOP_TOKEN_PROXY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ grant_type: 'refresh_token', refresh_token: refreshToken })
     });
     if (!res.ok) throw new Error('WHOOP token refresh failed: ' + res.status);
     storeWhoopToken(await res.json());
