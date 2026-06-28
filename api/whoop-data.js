@@ -25,7 +25,7 @@ module.exports = async (req, res) => {
 
   const path = req.query.path;
   const authHeader = req.headers.authorization;
-  if (!path || !path.startsWith('/v1/')) {
+  if (!path || !path.startsWith('/v2/')) {
     res.status(400).json({ error: 'invalid_path' });
     return;
   }
@@ -34,17 +34,15 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const upstreamUrl = WHOOP_API_BASE + path;
   try {
-    const whoopRes = await fetch(upstreamUrl, {
+    const whoopRes = await fetch(WHOOP_API_BASE + path, {
       headers: { Authorization: authHeader }
     });
     const text = await whoopRes.text();
     let data;
     try { data = JSON.parse(text); } catch (e) { data = { error: text || 'empty_response' }; }
-    data._debug_upstream_url = upstreamUrl;
     res.status(whoopRes.status).json(data);
   } catch (err) {
-    res.status(502).json({ error: 'whoop_data_proxy_failed', detail: String(err), _debug_upstream_url: upstreamUrl });
+    res.status(502).json({ error: 'whoop_data_proxy_failed', detail: String(err) });
   }
 };

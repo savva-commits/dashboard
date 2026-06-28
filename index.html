@@ -794,8 +794,8 @@
   async function loadWhoopData() {
     document.getElementById('connectWhoopBtn').textContent = 'Reconnect WHOOP';
     try {
-      const recoveryData = await whoopFetch('/v1/recovery?limit=14');
-      const sleepData = await whoopFetch('/v1/activity/sleep?limit=1');
+      const recoveryData = await whoopFetch('/v2/recovery?limit=14');
+      const sleepData = await whoopFetch('/v2/activity/sleep?limit=1');
 
       const records = (recoveryData.records || []).slice().reverse();
       const latest = records[records.length - 1];
