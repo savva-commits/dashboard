@@ -317,7 +317,7 @@
     <button class="btn" id="connectWhoopBtn">Connect WHOOP</button>
   </section>
 
-  <!-- RACING -->
+  <!-- CALENDAR -->
   <section class="tab-panel" id="tab-racing">
     <div class="card countdown">
       <div class="days" id="countdownDays">--</div>
@@ -326,6 +326,10 @@
     <div class="card">
       <h2>Next Round</h2>
       <p class="placeholder-text" id="nextRoundText">Connect Google Calendar to load FJC race events.</p>
+    </div>
+    <div class="card">
+      <h2>Next Events</h2>
+      <div id="nextEventsList"><p class="placeholder-text">Upcoming events will appear here once Google Calendar is connected.</p></div>
     </div>
     <div class="card">
       <h2>Full Season</h2>
@@ -398,7 +402,7 @@
 
 <nav class="tabbar">
   <button class="active" data-tab="home"><span class="icon">●</span>Home</button>
-  <button data-tab="racing"><span class="icon">🏁</span>Racing</button>
+  <button data-tab="racing"><span class="icon">🏁</span>Calendar</button>
   <button data-tab="training"><span class="icon">▲</span>Training</button>
   <button data-tab="nutrition"><span class="icon">◆</span>Nutrition</button>
   <button data-tab="briefing"><span class="icon">■</span>Briefing</button>
@@ -517,6 +521,7 @@
     const countdownDays = document.getElementById('countdownDays');
     const countdownLabel = document.getElementById('countdownLabel');
     const seasonList = document.getElementById('seasonList');
+    const nextEventsList = document.getElementById('nextEventsList');
 
     if (upcoming.length === 0) {
       nextRoundText.textContent = 'No upcoming FJC rounds found on the calendar.';
@@ -528,6 +533,18 @@
       countdownDays.textContent = d;
       countdownLabel.textContent = d === 1 ? 'Day to ' + next.title : 'Days to ' + next.title;
       nextRoundText.textContent = `${next.title} — ${formatDate(next.start)}`;
+    }
+
+    nextEventsList.innerHTML = '';
+    if (upcoming.length === 0) {
+      nextEventsList.innerHTML = '<p class="placeholder-text">No upcoming events found.</p>';
+    } else {
+      upcoming.slice(0, 5).forEach(e => {
+        const row = document.createElement('div');
+        row.className = 'event-row';
+        row.innerHTML = `<span class="name">${e.title}</span><span class="date">${formatDate(e.start)}</span>`;
+        nextEventsList.appendChild(row);
+      });
     }
 
     seasonList.innerHTML = '';
