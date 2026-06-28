@@ -345,42 +345,12 @@
     <div id="recoveryAdjustNote"></div>
     <div class="card" id="trainingPlanCard">
       <h2>This Week</h2>
-      <p class="placeholder-text">Plan adjusts to your live WHOOP recovery score once connected: 2 gym, 20k run, 60k bike, 1 rest day.</p>
-      <div class="session-row">
-        <div class="day">Mon</div>
-        <div class="desc">Gym — strength</div>
-        <span class="tag tag-gym">Gym</span>
-      </div>
-      <div class="session-row">
-        <div class="day">Tue</div>
-        <div class="desc">Run 5k</div>
-        <span class="tag tag-run">Run</span>
-      </div>
-      <div class="session-row">
-        <div class="day">Wed</div>
-        <div class="desc">Bike 20k</div>
-        <span class="tag tag-bike">Bike</span>
-      </div>
-      <div class="session-row">
-        <div class="day">Thu</div>
-        <div class="desc">Gym — strength</div>
-        <span class="tag tag-gym">Gym</span>
-      </div>
-      <div class="session-row">
-        <div class="day">Fri</div>
-        <div class="desc">Run 8k</div>
-        <span class="tag tag-run">Run</span>
-      </div>
-      <div class="session-row">
-        <div class="day">Sat</div>
-        <div class="desc">Bike 40k</div>
-        <span class="tag tag-bike">Bike</span>
-      </div>
-      <div class="session-row">
-        <div class="day">Sun</div>
-        <div class="desc">Rest day</div>
-        <span class="tag tag-rest">Rest</span>
-      </div>
+      <p class="placeholder-text">Today's session auto-adjusts to your live WHOOP recovery score. Base plan: 2 gym, 20k run, 60k bike, 1 rest day.</p>
+      <div id="weekPlanList"></div>
+    </div>
+    <div class="card">
+      <h2>Session Difficulty Ranking</h2>
+      <div id="difficultyLegend"></div>
     </div>
   </section>
 
@@ -438,6 +408,8 @@
       navigator.serviceWorker.register('sw.js');
     });
   }
+
+  window.addEventListener('load', () => updateTrainingPlan());
 
   // ---- Google Calendar sync ----
   // Create an OAuth 2.0 Client ID (type: Web application) at
@@ -613,6 +585,78 @@
     updateTrainingPlan();
   }
 
+  // Hardest (7) to easiest (0). Used both to render the legend and to pick
+  // a same-or-lower intensity substitute for today's session on low recovery.
+  const SESSION_POOL = [
+    { key: 'bike40',     label: 'Bike 40k',                          tag: 'tag-bike',     tagLabel: 'Bike',     difficulty: 7 },
+    { key: 'gymFull',    label: 'Gym — strength (full intensity)',   tag: 'tag-gym',      tagLabel: 'Gym',      difficulty: 6 },
+    { key: 'run8',       label: 'Run 8k',                            tag: 'tag-run',      tagLabel: 'Run',      difficulty: 5 },
+    { key: 'bike20',     label: 'Bike 20k',                          tag: 'tag-bike',     tagLabel: 'Bike',     difficulty: 4 },
+    { key: 'gymReduced', label: 'Gym — reduced intensity',           tag: 'tag-gym',      tagLabel: 'Gym',      difficulty: 3 },
+    { key: 'run5',       label: 'Run 5k',                            tag: 'tag-run',      tagLabel: 'Run',      difficulty: 2 },
+    { key: 'recovery',   label: 'Recovery day — light walk/mobility', tag: 'tag-rest',    tagLabel: 'Recovery', difficulty: 1 },
+    { key: 'rest',       label: 'Rest day',                          tag: 'tag-rest',     tagLabel: 'Rest',     difficulty: 0 }
+  ];
+  const SESSION = {};
+  SESSION_POOL.forEach(s => SESSION[s.key] = s);
+
+  const WEEK_PLAN_KEYS = ['gymFull', 'run5', 'bike20', 'gymFull', 'run8', 'bike40', 'rest'];
+  const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  function difficultyColor(d) {
+    if (d >= 6) return 'var(--red)';
+    if (d >= 4) return 'var(--coral)';
+    if (d >= 2) return 'var(--yellow)';
+    if (d >= 1) return 'var(--lime)';
+    return 'var(--muted)';
+  }
+
+  function renderDifficultyLegend() {
+    const el = document.getElementById('difficultyLegend');
+    if (!el) return;
+    el.innerHTML = '';
+    SESSION_POOL.forEach(s => {
+      const row = document.createElement('div');
+      row.className = 'session-row';
+      row.innerHTML = `
+        <div class="day" style="width:34px;color:${difficultyColor(s.difficulty)};font-weight:800;">${s.difficulty}</div>
+        <div class="desc">${s.label}</div>
+        <span class="tag ${s.tag}">${s.tagLabel}</span>`;
+      el.appendChild(row);
+    });
+  }
+
+  // Picks today's session given the base plan and live recovery score:
+  // <34 -> recovery day (unless already resting), 34-67 -> reduced-intensity
+  // gym swap, >=68 -> base plan stands (hardest sessions are earned).
+  function effectiveSessionForDay(dayIndex, todayIndex, recovery) {
+    const base = SESSION[WEEK_PLAN_KEYS[dayIndex]];
+    if (dayIndex !== todayIndex || recovery === null) return base;
+    if (recovery < 34) return base.key === 'rest' ? base : SESSION.recovery;
+    if (recovery <= 67 && base.key === 'gymFull') return SESSION.gymReduced;
+    return base;
+  }
+
+  function renderWeekPlan(recovery) {
+    const list = document.getElementById('weekPlanList');
+    if (!list) return;
+    const todayIndex = (new Date().getDay() + 6) % 7;
+    list.innerHTML = '';
+    DAY_LABELS.forEach((label, i) => {
+      const session = effectiveSessionForDay(i, todayIndex, recovery);
+      const isToday = i === todayIndex;
+      const adjusted = isToday && session.key !== WEEK_PLAN_KEYS[i];
+      const row = document.createElement('div');
+      row.className = 'session-row';
+      row.style.background = isToday ? '#f4f9ef' : '';
+      row.innerHTML = `
+        <div class="day">${label}${isToday ? ' •' : ''}</div>
+        <div class="desc">${session.label}${adjusted ? ' <small style="color:var(--muted);">(adjusted)</small>' : ''}</div>
+        <span class="tag ${session.tag}">${session.tagLabel}</span>`;
+      list.appendChild(row);
+    });
+  }
+
   function updateTrainingPlan() {
     const banner = document.getElementById('raceWeekBanner');
     const planCard = document.getElementById('trainingPlanCard');
@@ -621,6 +665,8 @@
     const recoveryRaw = localStorage.getItem('latest_recovery_score');
     const recovery = recoveryRaw !== null ? Number(recoveryRaw) : null;
 
+    renderDifficultyLegend();
+
     if (isRaceWeek) {
       banner.innerHTML = '<div class="race-week-banner">Race week — focus on rest and prep</div>';
       planCard.style.display = 'none';
@@ -628,15 +674,14 @@
     }
     banner.innerHTML = '';
     planCard.style.display = '';
+    renderWeekPlan(recovery);
 
     if (recovery === null) {
       adjustNote.innerHTML = '';
-      return;
-    }
-    if (recovery < 34) {
-      adjustNote.innerHTML = '<div class="race-week-banner" style="background:var(--red);">Recovery low (' + recovery + '%) — swap today for a recovery day</div>';
+    } else if (recovery < 34) {
+      adjustNote.innerHTML = '<div class="race-week-banner" style="background:var(--red);">Recovery low (' + recovery + '%) — today swapped to a recovery day</div>';
     } else if (recovery <= 67) {
-      adjustNote.innerHTML = '<div class="race-week-banner" style="background:var(--yellow);color:#15201a;">Recovery moderate (' + recovery + '%) — if today is a gym day, reduce intensity</div>';
+      adjustNote.innerHTML = '<div class="race-week-banner" style="background:var(--yellow);color:#15201a;">Recovery moderate (' + recovery + '%) — gym days reduced to lower intensity</div>';
     } else {
       adjustNote.innerHTML = '';
     }
