@@ -463,7 +463,7 @@
     tokenClient.requestAccessToken({ prompt: getStoredToken() ? '' : 'consent' });
   }
 
-  async function fetchCalendarEvents(accessToken) {
+  async function fetchCalendarEvents(accessToken, calendarId) {
     const timeMin = new Date();
     timeMin.setDate(timeMin.getDate() - 30);
     const timeMax = new Date();
@@ -475,7 +475,7 @@
       orderBy: 'startTime',
       maxResults: '250'
     });
-    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDAR_ID)}/events?${params}`;
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
     if (!res.ok) {
       if (res.status === 401) localStorage.removeItem(TOKEN_KEY);
@@ -487,6 +487,19 @@
       start: new Date(ev.start.dateTime || ev.start.date),
       allDay: !ev.start.dateTime
     }));
+  }
+
+  const LESSONS_CALENDAR_NAME = 'Termly Tuition Plan';
+  const LESSONS_CALENDAR_ID_KEY = 'lessons_calendar_id';
+
+  async function findCalendarIdByName(accessToken, namePart) {
+    const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const match = (data.items || []).find(c => c.summary && c.summary.toLowerCase().includes(namePart.toLowerCase()));
+    return match ? match.id : null;
   }
 
   function daysUntil(date) {
@@ -590,7 +603,7 @@
   const SESSION_POOL = [
     { key: 'bike40',     label: 'Bike 40k',                          tag: 'tag-bike',     tagLabel: 'Bike',     difficulty: 7 },
     { key: 'gymFull',    label: 'Gym — strength (full intensity)',   tag: 'tag-gym',      tagLabel: 'Gym',      difficulty: 6 },
-    { key: 'run8',       label: 'Run 8k',                            tag: 'tag-run',      tagLabel: 'Run',      difficulty: 5 },
+    { key: 'run8',       label: 'Run 10k',                           tag: 'tag-run',      tagLabel: 'Run',      difficulty: 5 },
     { key: 'bike20',     label: 'Bike 20k',                          tag: 'tag-bike',     tagLabel: 'Bike',     difficulty: 4 },
     { key: 'gymReduced', label: 'Gym — reduced intensity',           tag: 'tag-gym',      tagLabel: 'Gym',      difficulty: 3 },
     { key: 'run5',       label: 'Run 5k',                            tag: 'tag-run',      tagLabel: 'Run',      difficulty: 2 },
@@ -695,28 +708,35 @@
     }
     document.getElementById('connectCalendarBtn').textContent = 'Reconnect Google Calendar';
     try {
-      const events = await fetchCalendarEvents(token.access_token);
+      const events = await fetchCalendarEvents(token.access_token, CALENDAR_ID);
       const fjcEvents = events.filter(e => {
         const t = e.title.toUpperCase();
         return t.includes('FJC') || t.includes('TESTING');
       });
       localStorage.setItem('fjc_events_cache', JSON.stringify(fjcEvents));
-      localStorage.setItem('all_events_cache', JSON.stringify(events));
       renderRacingTab(fjcEvents);
-      renderNextSchoolDay(events);
       renderTrainingForRaceWeek(fjcEvents);
+
+      let lessonsCalendarId = localStorage.getItem(LESSONS_CALENDAR_ID_KEY);
+      if (!lessonsCalendarId) {
+        lessonsCalendarId = await findCalendarIdByName(token.access_token, LESSONS_CALENDAR_NAME);
+        if (lessonsCalendarId) localStorage.setItem(LESSONS_CALENDAR_ID_KEY, lessonsCalendarId);
+      }
+      const lessonEvents = lessonsCalendarId ? await fetchCalendarEvents(token.access_token, lessonsCalendarId) : [];
+      localStorage.setItem('lesson_events_cache', JSON.stringify(lessonEvents));
+      renderNextSchoolDay(lessonEvents);
     } catch (err) {
       console.error(err);
       const cachedFjc = localStorage.getItem('fjc_events_cache');
-      const cachedAll = localStorage.getItem('all_events_cache');
+      const cachedLessons = localStorage.getItem('lesson_events_cache');
       if (cachedFjc) {
         const fjcEvents = JSON.parse(cachedFjc).map(e => ({ ...e, start: new Date(e.start) }));
         renderRacingTab(fjcEvents);
         renderTrainingForRaceWeek(fjcEvents);
       }
-      if (cachedAll) {
-        const allEvents = JSON.parse(cachedAll).map(e => ({ ...e, start: new Date(e.start) }));
-        renderNextSchoolDay(allEvents);
+      if (cachedLessons) {
+        const lessonEvents = JSON.parse(cachedLessons).map(e => ({ ...e, start: new Date(e.start) }));
+        renderNextSchoolDay(lessonEvents);
       }
     }
   }
