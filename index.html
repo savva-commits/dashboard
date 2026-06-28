@@ -332,8 +332,8 @@
       <div id="nextEventsList"><p class="placeholder-text">Upcoming events will appear here once Google Calendar is connected.</p></div>
     </div>
     <div class="card">
-      <h2>Full Season</h2>
-      <div id="seasonList"><p class="placeholder-text">Season list will appear here once Google Calendar is connected.</p></div>
+      <h2 id="nextSchoolDayHeading">Next School Day</h2>
+      <div id="schoolDayList"><p class="placeholder-text">Lessons will appear here once Google Calendar is connected.</p></div>
     </div>
     <button class="btn secondary" id="connectCalendarBtn">Connect Google Calendar</button>
   </section>
@@ -481,8 +481,11 @@
   async function fetchCalendarEvents(accessToken) {
     const timeMin = new Date();
     timeMin.setDate(timeMin.getDate() - 30);
+    const timeMax = new Date();
+    timeMax.setDate(timeMax.getDate() + 30);
     const params = new URLSearchParams({
       timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
       singleEvents: 'true',
       orderBy: 'startTime',
       maxResults: '250'
@@ -512,6 +515,47 @@
     return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
   }
 
+  function formatTime(d) {
+    return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  }
+
+  function nextSchoolDay() {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    while (d.getDay() === 0 || d.getDay() === 6) {
+      d.setDate(d.getDate() + 1);
+    }
+    return d;
+  }
+
+  function sameDay(a, b) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
+  function renderNextSchoolDay(allEvents) {
+    const heading = document.getElementById('nextSchoolDayHeading');
+    const list = document.getElementById('schoolDayList');
+    const day = nextSchoolDay();
+    heading.textContent = 'Lessons — ' + formatDate(day);
+
+    const lessons = allEvents
+      .filter(e => sameDay(e.start, day))
+      .sort((a, b) => a.start - b.start);
+
+    list.innerHTML = '';
+    if (lessons.length === 0) {
+      list.innerHTML = '<p class="placeholder-text">No lessons found for the next school day.</p>';
+    } else {
+      lessons.forEach(e => {
+        const row = document.createElement('div');
+        row.className = 'event-row';
+        const time = e.allDay ? 'All day' : formatTime(e.start);
+        row.innerHTML = `<span class="name">${e.title}</span><span class="date">${time}</span>`;
+        list.appendChild(row);
+      });
+    }
+  }
+
   function renderRacingTab(fjcEvents) {
     const now = new Date();
     const upcoming = fjcEvents.filter(e => e.start >= now);
@@ -520,7 +564,6 @@
     const nextRoundText = document.getElementById('nextRoundText');
     const countdownDays = document.getElementById('countdownDays');
     const countdownLabel = document.getElementById('countdownLabel');
-    const seasonList = document.getElementById('seasonList');
     const nextEventsList = document.getElementById('nextEventsList');
 
     if (upcoming.length === 0) {
@@ -547,18 +590,6 @@
       });
     }
 
-    seasonList.innerHTML = '';
-    const all = [...past, ...upcoming];
-    if (all.length === 0) {
-      seasonList.innerHTML = '<p class="placeholder-text">No FJC events found on the calendar.</p>';
-    } else {
-      all.forEach(e => {
-        const row = document.createElement('div');
-        row.className = 'event-row' + (e.start < now ? ' faded' : '');
-        row.innerHTML = `<span class="name">${e.title}</span><span class="date">${formatDate(e.start)}</span>`;
-        seasonList.appendChild(row);
-      });
-    }
   }
 
   function renderTrainingForRaceWeek(fjcEvents) {
@@ -587,15 +618,22 @@
       const events = await fetchCalendarEvents(token.access_token);
       const fjcEvents = events.filter(e => e.title.toUpperCase().includes('FJC'));
       localStorage.setItem('fjc_events_cache', JSON.stringify(fjcEvents));
+      localStorage.setItem('all_events_cache', JSON.stringify(events));
       renderRacingTab(fjcEvents);
+      renderNextSchoolDay(events);
       renderTrainingForRaceWeek(fjcEvents);
     } catch (err) {
       console.error(err);
-      const cached = localStorage.getItem('fjc_events_cache');
-      if (cached) {
-        const fjcEvents = JSON.parse(cached).map(e => ({ ...e, start: new Date(e.start) }));
+      const cachedFjc = localStorage.getItem('fjc_events_cache');
+      const cachedAll = localStorage.getItem('all_events_cache');
+      if (cachedFjc) {
+        const fjcEvents = JSON.parse(cachedFjc).map(e => ({ ...e, start: new Date(e.start) }));
         renderRacingTab(fjcEvents);
         renderTrainingForRaceWeek(fjcEvents);
+      }
+      if (cachedAll) {
+        const allEvents = JSON.parse(cachedAll).map(e => ({ ...e, start: new Date(e.start) }));
+        renderNextSchoolDay(allEvents);
       }
     }
   }
