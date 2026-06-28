@@ -485,6 +485,7 @@
     return (data.items || []).map(ev => ({
       title: ev.summary || '(untitled)',
       start: new Date(ev.start.dateTime || ev.start.date),
+      end: new Date((ev.end && (ev.end.dateTime || ev.end.date)) || ev.start.dateTime || ev.start.date),
       allDay: !ev.start.dateTime
     }));
   }
@@ -530,11 +531,20 @@
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   }
 
+  function targetLessonDay(allEvents) {
+    const now = new Date();
+    const todaysLessons = allEvents.filter(e => sameDay(e.start, now));
+    const allComplete = todaysLessons.length === 0 || todaysLessons.every(e => e.end <= now);
+    return allComplete ? nextSchoolDay() : now;
+  }
+
   function renderNextSchoolDay(allEvents) {
     const heading = document.getElementById('nextSchoolDayHeading');
     const list = document.getElementById('schoolDayList');
-    const day = nextSchoolDay();
-    heading.textContent = 'Lessons — ' + formatDate(day);
+    const now = new Date();
+    const day = targetLessonDay(allEvents);
+    const isToday = sameDay(day, now);
+    heading.textContent = (isToday ? 'Today — ' : 'Next School Day — ') + formatDate(day);
 
     const lessons = allEvents
       .filter(e => sameDay(e.start, day))
@@ -542,7 +552,7 @@
 
     list.innerHTML = '';
     if (lessons.length === 0) {
-      list.innerHTML = '<p class="placeholder-text">No lessons found for the next school day.</p>';
+      list.innerHTML = '<p class="placeholder-text">No lessons found.</p>';
     } else {
       lessons.forEach(e => {
         const row = document.createElement('div');
