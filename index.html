@@ -686,7 +686,7 @@
   const WHOOP_SCOPES = 'read:recovery read:cycles read:sleep read:workout read:profile read:body_measurement offline';
   const WHOOP_AUTH_URL = 'https://api.prod.whoop.com/oauth/oauth2/auth';
   const WHOOP_TOKEN_PROXY_URL = 'https://dashboard20-iota.vercel.app/api/whoop-token';
-  const WHOOP_API_BASE = 'https://api.prod.whoop.com/developer';
+  const WHOOP_DATA_PROXY_URL = 'https://dashboard20-iota.vercel.app/api/whoop-data';
   const WHOOP_TOKEN_KEY = 'whoop_token';
   const WHOOP_STATE_KEY = 'whoop_oauth_state';
 
@@ -749,13 +749,14 @@
       await refreshWhoopToken(token.refresh_token);
       token = getWhoopToken();
     }
-    const res = await fetch(WHOOP_API_BASE + path, {
+    const proxyUrl = `${WHOOP_DATA_PROXY_URL}?path=${encodeURIComponent(path)}`;
+    const res = await fetch(proxyUrl, {
       headers: { Authorization: `Bearer ${token.access_token}` }
     });
     if (res.status === 401) {
       await refreshWhoopToken(token.refresh_token);
       token = getWhoopToken();
-      return fetch(WHOOP_API_BASE + path, { headers: { Authorization: `Bearer ${token.access_token}` } }).then(r => r.json());
+      return fetch(proxyUrl, { headers: { Authorization: `Bearer ${token.access_token}` } }).then(r => r.json());
     }
     if (!res.ok) throw new Error('WHOOP API error: ' + res.status);
     return res.json();
