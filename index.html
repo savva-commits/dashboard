@@ -315,6 +315,7 @@
     </div>
 
     <button class="btn" id="connectWhoopBtn">Connect WHOOP</button>
+    <p class="placeholder-text" id="whoopDebug" style="margin-top:10px;"></p>
   </section>
 
   <!-- CALENDAR -->
@@ -722,14 +723,20 @@
     }));
   }
 
+  function setWhoopDebug(msg) {
+    const el = document.getElementById('whoopDebug');
+    if (el) el.textContent = msg;
+  }
+
   async function exchangeWhoopCode(code) {
     const res = await fetch(WHOOP_TOKEN_PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ grant_type: 'authorization_code', code })
     });
-    if (!res.ok) throw new Error('WHOOP token exchange failed: ' + res.status);
-    storeWhoopToken(await res.json());
+    const bodyText = await res.text();
+    if (!res.ok) throw new Error(`Token exchange failed (${res.status}): ${bodyText}`);
+    storeWhoopToken(JSON.parse(bodyText));
   }
 
   async function refreshWhoopToken(refreshToken) {
@@ -738,28 +745,30 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ grant_type: 'refresh_token', refresh_token: refreshToken })
     });
-    if (!res.ok) throw new Error('WHOOP token refresh failed: ' + res.status);
-    storeWhoopToken(await res.json());
+    const bodyText = await res.text();
+    if (!res.ok) throw new Error(`Token refresh failed (${res.status}): ${bodyText}`);
+    storeWhoopToken(JSON.parse(bodyText));
   }
 
   async function whoopFetch(path) {
     let token = getWhoopToken();
-    if (!token) throw new Error('not connected');
+    if (!token) throw new Error('not connected — click Connect WHOOP first');
     if (Date.now() >= token.expires_at) {
       await refreshWhoopToken(token.refresh_token);
       token = getWhoopToken();
     }
     const proxyUrl = `${WHOOP_DATA_PROXY_URL}?path=${encodeURIComponent(path)}`;
-    const res = await fetch(proxyUrl, {
+    let res = await fetch(proxyUrl, {
       headers: { Authorization: `Bearer ${token.access_token}` }
     });
     if (res.status === 401) {
       await refreshWhoopToken(token.refresh_token);
       token = getWhoopToken();
-      return fetch(proxyUrl, { headers: { Authorization: `Bearer ${token.access_token}` } }).then(r => r.json());
+      res = await fetch(proxyUrl, { headers: { Authorization: `Bearer ${token.access_token}` } });
     }
-    if (!res.ok) throw new Error('WHOOP API error: ' + res.status);
-    return res.json();
+    const bodyText = await res.text();
+    if (!res.ok) throw new Error(`WHOOP API error for ${path} (${res.status}): ${bodyText}`);
+    return JSON.parse(bodyText);
   }
 
   function recoveryColor(score) {
@@ -818,8 +827,10 @@
       }
 
       updateTrainingPlan();
+      setWhoopDebug('');
     } catch (err) {
       console.error(err);
+      setWhoopDebug(err.message);
     }
   }
 
@@ -829,10 +840,19 @@
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const state = params.get('state');
+    const errorParam = params.get('error');
+    if (errorParam) {
+      history.replaceState({}, '', window.location.pathname);
+      setWhoopDebug('WHOOP authorization error: ' + errorParam);
+      return false;
+    }
     if (!code) return false;
     const savedState = localStorage.getItem(WHOOP_STATE_KEY);
     history.replaceState({}, '', window.location.pathname);
-    if (!state || state !== savedState) { console.error('WHOOP state mismatch'); return false; }
+    if (!state || state !== savedState) {
+      setWhoopDebug('WHOOP state mismatch — try connecting again');
+      return false;
+    }
     await exchangeWhoopCode(code);
     return true;
   }
@@ -842,7 +862,11 @@
       initGoogleAuth();
       if (getStoredToken()) loadCalendar();
 
-      const justConnected = await handleWhoopRedirect().catch(err => { console.error(err); return false; });
+      const justConnected = await handleWhoopRedirect().catch(err => {
+        console.error(err);
+        setWhoopDebug(err.message);
+        return false;
+      });
       if (justConnected || getWhoopToken()) loadWhoopData();
     }, 300);
   });
