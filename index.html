@@ -275,7 +275,7 @@
 
 <header class="topbar">
   <h1>Savva HQ</h1>
-  <p>Wed 28 Jun · GT4 2027 in progress</p>
+  <p id="topbarDate"></p>
 </header>
 
 <main>
@@ -419,6 +419,8 @@
 </nav>
 
 <script>
+  document.getElementById('topbarDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+
   const tabButtons = document.querySelectorAll('nav.tabbar button');
   const panels = document.querySelectorAll('.tab-panel');
   tabButtons.forEach(btn => {
