@@ -1,10 +1,13 @@
-// Vercel serverless function: syncs the food log across devices via a
-// private GitHub repo (see api/_github.js), keyed by calendar date.
+// Vercel serverless function: generic cross-device sync for everything
+// besides the food log (which has its own date-keyed endpoint). Backed by
+// the same private GitHub repo as api/food-log.js.
 //
-// GET  /api/food-log?date=YYYY-MM-DD   -> { log: [...] }
-// POST /api/food-log {date, log}        -> { ok: true }
+// GET  /api/sync?key=savedRecipes        -> { value: ... }
+// POST /api/sync {key, value}             -> { ok: true }
 
 const { readSyncData, updateSyncData } = require('./_github');
+
+const ALLOWED_KEYS = ['savedRecipes', 'runningPbs', 'gym1rms', 'workoutHistory', 'weeklyTargets', 'dailyTotals'];
 
 module.exports = async (req, res) => {
   const allowedOrigin = process.env.ALLOWED_ORIGIN || '*';
@@ -18,12 +21,11 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === 'GET') {
-    const date = req.query.date;
-    if (!date) { res.status(400).json({ error: 'missing_date' }); return; }
+    const key = req.query.key;
+    if (!ALLOWED_KEYS.includes(key)) { res.status(400).json({ error: 'invalid_key' }); return; }
     try {
       const { content } = await readSyncData();
-      const log = (content.foodLogs && content.foodLogs[date]) || [];
-      res.status(200).json({ log });
+      res.status(200).json({ value: content[key] !== undefined ? content[key] : null });
     } catch (err) {
       res.status(502).json({ error: 'sync_read_failed' });
     }
@@ -31,14 +33,10 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === 'POST') {
-    const { date, log } = req.body || {};
-    if (!date || !Array.isArray(log)) { res.status(400).json({ error: 'invalid_body' }); return; }
+    const { key, value } = req.body || {};
+    if (!ALLOWED_KEYS.includes(key)) { res.status(400).json({ error: 'invalid_key' }); return; }
     try {
-      await updateSyncData(content => {
-        content.foodLogs = content.foodLogs || {};
-        content.foodLogs[date] = log;
-        return content;
-      });
+      await updateSyncData(content => { content[key] = value; return content; });
       res.status(200).json({ ok: true });
     } catch (err) {
       res.status(502).json({ error: 'sync_write_failed' });
