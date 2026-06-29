@@ -612,6 +612,260 @@
   }
   nav.tabbar button .icon{font-size:20px;}
   nav.tabbar button.active{color:var(--lime);}
+
+  /* ---- Week tab ---- */
+  .week-header-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:10px;
+    margin-bottom:14px;
+  }
+  .week-header-row h2{
+    margin:0;
+    font-size:20px;
+    font-weight:800;
+    letter-spacing:-0.02em;
+    color:var(--ink);
+  }
+  .week-range{
+    margin:2px 0 0;
+    font-size:13px;
+    color:var(--muted);
+  }
+  .week-add-btn{
+    background:var(--lime);
+    color:#15201a;
+    border:none;
+    font-weight:800;
+    font-size:13px;
+    padding:10px 14px;
+    border-radius:12px;
+    cursor:pointer;
+    flex-shrink:0;
+    white-space:nowrap;
+  }
+  .week-sync-indicator{
+    font-size:12px;
+    color:var(--muted);
+    font-weight:700;
+    margin-bottom:8px;
+    height:16px;
+    visibility:hidden;
+  }
+  .week-sync-indicator.active{visibility:visible;}
+  .week-pool{
+    min-height:48px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    align-items:flex-start;
+  }
+  .week-pool.drop-target{outline:2px dashed var(--lime);outline-offset:4px;border-radius:12px;}
+  .week-day-grid{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .week-day-card{
+    background:var(--card);
+    border-radius:16px;
+    box-shadow:var(--shadow);
+    padding:12px;
+  }
+  .week-day-card.is-today{border:2px solid var(--lime);}
+  .week-day-card-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:8px;
+    padding:4px 6px;
+    border-radius:8px;
+  }
+  .week-day-card.is-today .week-day-card-header{background:#eef9da;}
+  .week-day-card-header .day-name{font-weight:800;font-size:14px;}
+  .week-day-card-header .day-date{font-size:12px;color:var(--muted);}
+  .week-day-chips{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    min-height:34px;
+  }
+  .week-day-chips.drop-target{outline:2px dashed var(--lime);outline-offset:2px;border-radius:10px;}
+  body[data-layout="desktop"] .week-day-grid{
+    display:grid;
+    grid-template-columns:repeat(7, 1fr);
+    gap:10px;
+  }
+  body[data-layout="desktop"] .week-day-chips{
+    flex-direction:column;
+    align-items:stretch;
+  }
+  body[data-layout="desktop"] .week-day-chips .week-chip{width:100%;}
+
+  .week-chip{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:7px 10px;
+    border-radius:999px;
+    font-size:13px;
+    font-weight:700;
+    cursor:grab;
+    user-select:none;
+  }
+  .week-chip.dragging{opacity:0.4;}
+  .week-chip.is-done{opacity:0.45;text-decoration:line-through;cursor:default;}
+  .week-chip .remove-btn{
+    background:none;
+    border:none;
+    font-weight:800;
+    font-size:13px;
+    line-height:1;
+    cursor:pointer;
+    color:inherit;
+    opacity:0.6;
+    padding:0;
+    margin-left:2px;
+  }
+  .week-chip.locked-chip{
+    background:#fde2de;
+    color:var(--coral);
+    cursor:default;
+    font-weight:800;
+  }
+
+  .chip-green{background:#E8F7F2;color:#1D9E75;}
+  .chip-teal{background:#E4F4F7;color:#0E8A9E;}
+  .chip-coral{background:#FAEAE5;color:#E05C3A;}
+  .chip-amber{background:#FDF3DC;color:#D4920A;}
+  .chip-purple{background:#F0ECFA;color:#7C5CBF;}
+  .chip-grey{background:#EDEBE8;color:#555555;}
+  .chip-blue{background:#EFF6FF;color:#2563EB;}
+  .chip-pink{background:#FCE4EC;color:#C2185B;}
+
+  .week-side-card .item-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:6px 0;
+  }
+  .week-progress-row{margin-bottom:10px;}
+  .week-progress-row .label{
+    display:flex;
+    justify-content:space-between;
+    font-size:13px;
+    font-weight:700;
+    margin-bottom:4px;
+  }
+  .week-progress-row .bar{
+    background:#eef2ec;
+    border-radius:8px;
+    height:8px;
+    overflow:hidden;
+  }
+  .week-progress-row .bar-fill{background:var(--lime);height:100%;}
+
+  /* Add task modal */
+  .week-modal-overlay{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(20,32,20,0.45);
+    z-index:1100;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .week-modal-overlay.open{display:flex;}
+  .week-modal{
+    background:var(--card);
+    border-radius:20px;
+    padding:20px;
+    width:100%;
+    max-width:420px;
+    max-height:90vh;
+    overflow-y:auto;
+    box-shadow:0 12px 32px rgba(0,0,0,0.25);
+  }
+  .week-modal label.field-label{
+    display:block;
+    font-size:13px;
+    font-weight:700;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    margin:14px 0 8px;
+  }
+  .week-modal input[type=text]{
+    width:100%;
+    padding:12px 14px;
+    border-radius:12px;
+    border:1px solid #e0e6dd;
+    font-size:15px;
+    background:#f7faf5;
+    color:var(--ink);
+  }
+  .week-icon-grid{
+    display:grid;
+    grid-template-columns:repeat(8, 1fr);
+    gap:6px;
+  }
+  .week-icon-grid button{
+    aspect-ratio:1;
+    border-radius:10px;
+    border:2px solid transparent;
+    background:#f7faf5;
+    font-size:18px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .week-icon-grid button.selected{border-color:var(--lime);background:#eef9da;}
+  .week-colour-row{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .week-colour-swatch{
+    width:30px;
+    height:30px;
+    border-radius:50%;
+    border:2px solid transparent;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .week-colour-swatch.selected{border-color:var(--ink);transform:scale(1.15);}
+  .week-day-btns{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+  }
+  .week-day-btns button{
+    flex:1;
+    min-width:38px;
+    padding:8px 4px;
+    border-radius:10px;
+    border:1px solid #e0e6dd;
+    background:#f7faf5;
+    color:var(--muted);
+    font-size:12px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .week-day-btns button.selected{background:var(--lime);color:#15201a;border-color:var(--lime);}
+  .week-preview-row{
+    margin:14px 0 4px;
+    display:flex;
+    justify-content:center;
+  }
+  .week-modal-actions{
+    display:flex;
+    gap:10px;
+    margin-top:18px;
+  }
+  .week-modal-actions .btn{margin:0;}
 </style>
 </head>
 <body>
@@ -865,7 +1119,77 @@
     <p class="placeholder-text" style="text-align:center;margin-top:10px;">More gym tracking coming soon.</p>
   </section>
 
+  <!-- WEEK -->
+  <section class="tab-panel" id="tab-week">
+    <div class="split-layout">
+      <div class="split-col">
+        <div class="week-header-row">
+          <div>
+            <h2 style="text-transform:none;color:var(--ink);">Week</h2>
+            <p class="week-range" id="weekRangeLabel"></p>
+          </div>
+          <button class="week-add-btn" id="weekAddTaskBtn">＋ Add task</button>
+        </div>
+        <p class="week-sync-indicator" id="weekSyncIndicator">Saving…</p>
+
+        <div id="weekRaceBanner"></div>
+
+        <div class="card" id="weekPoolCard">
+          <h2>Unassigned</h2>
+          <div class="week-pool" id="weekPool"></div>
+        </div>
+
+        <div class="week-day-grid" id="weekDayGrid"></div>
+      </div>
+      <div class="split-col">
+        <div class="card week-side-card">
+          <h2>Today</h2>
+          <div id="weekTodayContent"></div>
+        </div>
+        <div class="card week-side-card">
+          <h2>Tomorrow</h2>
+          <div id="weekTomorrowContent"></div>
+        </div>
+        <div class="card week-side-card">
+          <h2>Week Progress</h2>
+          <div id="weekProgressDetail"></div>
+        </div>
+        <div class="card">
+          <button class="btn secondary" id="weekAddTaskBtn2">＋ Add task</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
 </main>
+
+<div id="weekModalOverlay" class="week-modal-overlay">
+  <div class="week-modal">
+    <div class="settings-modal-header">
+      <h2>Add task</h2>
+      <button id="weekModalCloseBtn" aria-label="Close">&times;</button>
+    </div>
+
+    <label class="field-label">Task name</label>
+    <input type="text" id="weekTaskNameInput" placeholder="e.g. Swim session">
+
+    <label class="field-label">Icon</label>
+    <div class="week-icon-grid" id="weekIconGrid"></div>
+
+    <label class="field-label">Colour</label>
+    <div class="week-colour-row" id="weekColourRow"></div>
+
+    <label class="field-label">Day (optional)</label>
+    <div class="week-day-btns" id="weekDayBtns"></div>
+
+    <div class="week-preview-row" id="weekPreviewRow"></div>
+
+    <div class="week-modal-actions">
+      <button class="btn secondary" id="weekModalCancelBtn">Cancel</button>
+      <button class="btn" id="weekModalSaveBtn">Add task</button>
+    </div>
+  </div>
+</div>
 
 <nav class="tabbar">
   <button class="active" data-tab="home"><span class="icon">●</span>Home</button>
@@ -874,6 +1198,7 @@
   <button data-tab="nutrition"><span class="icon">◆</span>Nutrition</button>
   <button data-tab="briefing"><span class="icon">■</span>Briefing</button>
   <button data-tab="gym"><span class="icon">🏋</span>Gym</button>
+  <button data-tab="week"><span class="icon">📅</span>Week</button>
 </nav>
 
 <script>
@@ -935,6 +1260,9 @@
       if (btn.dataset.tab === 'gym' && typeof syncRunningPbsFromRemote === 'function') {
         Promise.all([syncRunningPbsFromRemote(), syncGym1rmsFromRemote(), syncExerciseWeightsFromRemote(), syncWorkoutHistoryFromRemote()])
           .then(() => { renderRunningPbs(); renderGym1rms(); renderWorkoutLibrary(); });
+      }
+      if (btn.dataset.tab === 'week' && typeof loadWeekTab === 'function') {
+        loadWeekTab();
       }
     });
   });
@@ -1218,6 +1546,7 @@
     state[id] = complete;
     localStorage.setItem(key, JSON.stringify(state));
     syncPush('weeklyTargets', { weekKey: currentWeekKey(), state });
+    if (typeof markWeekTaskDoneForTarget === 'function') markWeekTaskDoneForTarget(id, complete);
   }
 
   async function syncWeeklyTargetsFromRemote() {
@@ -1260,8 +1589,11 @@
     const recoveryRaw = localStorage.getItem('latest_recovery_score');
     const recovery = recoveryRaw !== null ? Number(recoveryRaw) : null;
     const suggested = suggestNextTarget(recovery, state);
+    const plannedToday = typeof getTodaysPlannedTask === 'function' ? getTodaysPlannedTask() : null;
 
-    if (!suggested) {
+    if (plannedToday) {
+      banner.innerHTML = `<div class="suggestion-banner">Today: ${plannedToday.icon} ${plannedToday.label} <span class="sub">planned ${WEEK_DAY_NAMES[todayDayIndex()]}</span></div>`;
+    } else if (!suggested) {
       banner.innerHTML = '<div class="suggestion-banner">All weekly targets complete — nice work.</div>';
     } else {
       const bandLabel = recovery === null ? 'No recovery data' : recovery >= 67 ? `Recovery ${recovery}% — green` : recovery >= 34 ? `Recovery ${recovery}% — yellow` : `Recovery ${recovery}% — red`;
@@ -1740,7 +2072,10 @@
       if (upcoming.length) nextRace = `${upcoming[0].title} on ${formatDate(upcoming[0].start)} (${daysUntil(upcoming[0].start)} days away)`;
     } catch (e) {}
 
-    return { recovery, hrv, rhr, sleepPerf, sleepHours, isRaceWeek, nextRace };
+    const plannedToday = typeof getTodaysPlannedTask === 'function' ? getTodaysPlannedTask() : null;
+    const todayPlan = plannedToday ? `${plannedToday.icon} ${plannedToday.label}${plannedToday.done ? ' (already logged)' : ''}` : 'Nothing planned in the Week tab';
+
+    return { recovery, hrv, rhr, sleepPerf, sleepHours, isRaceWeek, nextRace, todayPlan };
   }
 
   function buildSystemPrompt() {
@@ -1755,6 +2090,7 @@ Live data:
 - Sleep duration: ${ctx.sleepHours}
 - Race week: ${ctx.isRaceWeek ? 'yes' : 'no'}
 - Next FJC round: ${ctx.nextRace}
+- Today's planned session: ${ctx.todayPlan}
 
 Keep replies short, direct, and action-first. No preamble, no sign-off.`;
   }
@@ -1798,14 +2134,16 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
   function renderBriefingPreview() {
     const el = document.getElementById('briefingPreview');
     if (!el) return;
+    const plannedToday = typeof getTodaysPlannedTask === 'function' ? getTodaysPlannedTask() : null;
+    const planLine = plannedToday ? `<p class="placeholder-text" style="color:var(--ink);font-weight:700;margin-bottom:6px;">Today: ${plannedToday.icon} ${plannedToday.label}</p>` : '';
     const history = getChatHistory();
     const lastAssistant = [...history].reverse().find(m => m.role === 'assistant');
     if (!lastAssistant) {
-      el.innerHTML = '<p class="placeholder-text">No briefing yet — open the Briefing tab to chat.</p>';
+      el.innerHTML = planLine + '<p class="placeholder-text">No briefing yet — open the Briefing tab to chat.</p>';
       return;
     }
     const preview = lastAssistant.content.length > 220 ? lastAssistant.content.slice(0, 220) + '…' : lastAssistant.content;
-    el.innerHTML = `<p class="placeholder-text" style="color:var(--ink);">${preview}</p>`;
+    el.innerHTML = planLine + `<p class="placeholder-text" style="color:var(--ink);">${preview}</p>`;
   }
 
   document.getElementById('openBriefingFromHomeBtn').addEventListener('click', () => {
@@ -2680,6 +3018,442 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     document.getElementById('activeSessionCard').style.display = 'none';
   }
 
+  // ---- Week tab ----
+  // Always-editable weekly planner, synced across devices via the same
+  // private-GitHub-repo backend as the food log (see api/week.js /
+  // api/_github.js). Deliberately not mirrored to localStorage — the
+  // remote copy is the only source of truth so two devices never drift.
+  const WEEK_PROXY_URL = 'https://dashboard20-iota.vercel.app/api/week';
+  const WEEK_DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const WEEK_DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const WEEK_ICONS = ['💪', '🏃', '🚴', '⛳', '😴', '🎾', '🏊', '🧘', '🛀', '🚶', '🏔️', '🎯', '📖', '💤', '🥗', '💊', '🧠', '🎸', '🏄', '⚽', '🏓', '🤸', '🧗', '🎮'];
+  const WEEK_COLOURS = ['green', 'teal', 'coral', 'amber', 'purple', 'grey', 'blue', 'pink'];
+  const WEEK_HARD_LABELS = ['Gym — Push', 'Gym — Pull', '5k Hard'];
+
+  function weekUuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'wt-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+  }
+
+  function defaultWeekTasks() {
+    return [
+      { icon: '💪', label: 'Gym — Push', colour: 'green' },
+      { icon: '💪', label: 'Gym — Pull', colour: 'green' },
+      { icon: '🏃', label: '5k Hard', colour: 'teal' },
+      { icon: '🏃', label: '7.5k Moderate', colour: 'teal' },
+      { icon: '🏃', label: '10k Easy', colour: 'teal' },
+      { icon: '🚴', label: 'Cycle 40k', colour: 'coral' },
+      { icon: '⛳', label: 'Golf / Range', colour: 'amber' },
+      { icon: '😴', label: 'Rest', colour: 'grey' },
+      { icon: '🎾', label: 'Padel', colour: 'purple' }
+    ].map(t => ({ id: weekUuid(), icon: t.icon, label: t.label, colour: t.colour, day: null, done: false }));
+  }
+
+  let weekPlanCache = null;
+  let weekPlanCacheKey = null;
+
+  function todayDayIndex() {
+    return (new Date().getDay() + 6) % 7; // Mon=0 .. Sun=6
+  }
+
+  function getTodaysPlannedTask() {
+    if (!weekPlanCache || weekPlanCacheKey !== currentWeekKey()) return null;
+    return weekPlanCache.find(t => t.day === todayDayIndex()) || null;
+  }
+
+  function getTomorrowsPlannedTask() {
+    if (!weekPlanCache || weekPlanCacheKey !== currentWeekKey()) return null;
+    return weekPlanCache.find(t => t.day === (todayDayIndex() + 1) % 7) || null;
+  }
+
+  async function fetchWeekPlan(weekKey) {
+    const res = await fetch(`${WEEK_PROXY_URL}?week=${weekKey}`);
+    if (!res.ok) throw new Error('week_fetch_failed_' + res.status);
+    const data = await res.json();
+    return data.tasks;
+  }
+
+  function setWeekSyncIndicator(active) {
+    const el = document.getElementById('weekSyncIndicator');
+    if (el) el.classList.toggle('active', active);
+  }
+
+  async function saveWeekPlanRemote(weekKey, tasks) {
+    setWeekSyncIndicator(true);
+    try {
+      await fetch(`${WEEK_PROXY_URL}?week=${weekKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks })
+      });
+    } catch (err) {
+      console.error('week save failed', err);
+    } finally {
+      setWeekSyncIndicator(false);
+    }
+  }
+
+  function getFjcEventsForWeek(monday) {
+    const sunday = new Date(monday.getTime() + 7 * 86400000 - 1);
+    try {
+      const cached = JSON.parse(localStorage.getItem('fjc_events_cache') || '[]')
+        .map(e => ({ ...e, start: new Date(e.start), end: e.end ? new Date(e.end) : new Date(e.start) }));
+      return cached.filter(e => e.start >= monday && e.start <= sunday);
+    } catch (e) { return []; }
+  }
+
+  function getRecoveryBand() {
+    const cache = getWhoopDataCache();
+    let score = null;
+    if (cache && Array.isArray(cache.trendScores) && cache.trendScores.length) {
+      const last3 = cache.trendScores.slice(-3);
+      score = Math.round(last3.reduce((a, b) => a + b, 0) / last3.length);
+    } else {
+      const raw = localStorage.getItem('latest_recovery_score');
+      score = raw !== null ? Number(raw) : null;
+    }
+    if (score === null || Number.isNaN(score)) return { score: null, band: null };
+    return { score, band: score >= 67 ? 'green' : score >= 34 ? 'yellow' : 'red' };
+  }
+
+  // Auto-distributes a fresh task set across the week the first time a
+  // week's plan is created. After that the plan is just whatever the user
+  // last dragged it to — this never runs again for an existing plan.
+  function autoDistributeWeekTasks(tasks, lockedDayIndices, band) {
+    const used = new Set(lockedDayIndices);
+    const hardDays = new Set();
+    const ascending = [0, 1, 2, 3, 4, 5, 6];
+    const order = band === 'yellow' ? [2, 3, 1, 4, 0, 5, 6]
+      : band === 'red' ? [6, 5, 4, 3, 2, 1, 0]
+      : ascending;
+
+    const restTask = tasks.find(t => t.label === 'Rest');
+    if (band === 'red' && restTask) {
+      for (const d of ascending) {
+        if (!used.has(d)) { restTask.day = d; used.add(d); break; }
+      }
+    }
+
+    const hardTasks = tasks.filter(t => WEEK_HARD_LABELS.includes(t.label) && t.day === null);
+    hardTasks.forEach(task => {
+      for (const d of order) {
+        if (used.has(d) || hardDays.has(d - 1) || hardDays.has(d + 1)) continue;
+        task.day = d; used.add(d); hardDays.add(d); return;
+      }
+    });
+    hardTasks.forEach(task => {
+      if (task.day !== null) return;
+      for (const d of ascending) {
+        if (!used.has(d)) { task.day = d; used.add(d); hardDays.add(d); return; }
+      }
+    });
+
+    const remaining = tasks.filter(t => t.day === null && t.label !== 'Padel');
+    remaining.forEach(task => {
+      for (const d of ascending) {
+        if (!used.has(d)) { task.day = d; used.add(d); return; }
+      }
+    });
+
+    const padelTask = tasks.find(t => t.label === 'Padel' && t.day === null);
+    if (padelTask) {
+      for (const d of ascending) {
+        if (!used.has(d)) { padelTask.day = d; used.add(d); break; }
+      }
+    }
+    return tasks;
+  }
+
+  async function loadWeekTab() {
+    const weekKey = currentWeekKey();
+    const monday = getMonday(new Date());
+    try {
+      let tasks = await fetchWeekPlan(weekKey);
+      if (!tasks || tasks.length === 0) {
+        tasks = defaultWeekTasks();
+        const fjcEvents = getFjcEventsForWeek(monday);
+        const lockedDayIndices = fjcEvents.map(e => (e.start.getDay() + 6) % 7);
+        const { band } = getRecoveryBand();
+        autoDistributeWeekTasks(tasks, lockedDayIndices, band);
+        await saveWeekPlanRemote(weekKey, tasks);
+      }
+      weekPlanCache = tasks;
+      weekPlanCacheKey = weekKey;
+    } catch (err) {
+      console.error('week load failed', err);
+      if (!weekPlanCache) { weekPlanCache = defaultWeekTasks(); weekPlanCacheKey = weekKey; }
+    }
+    renderWeekTab();
+    renderTodaySnapshot();
+    renderBriefingPreview();
+    if (typeof renderWeeklyTargets === 'function') renderWeeklyTargets();
+  }
+
+  async function persistWeekPlan() {
+    if (!weekPlanCache || !weekPlanCacheKey) return;
+    await saveWeekPlanRemote(weekPlanCacheKey, weekPlanCache);
+    renderWeekTab();
+    renderTodaySnapshot();
+    renderBriefingPreview();
+    if (typeof renderWeeklyTargets === 'function') renderWeeklyTargets();
+  }
+
+  function weekChipHtml(task, opts) {
+    opts = opts || {};
+    const locked = !!opts.locked;
+    const draggable = !locked && !task.done;
+    const classes = ['week-chip', 'chip-' + task.colour];
+    if (task.done) classes.push('is-done');
+    return `<span class="${classes.join(' ')}" data-task-id="${task.id}" draggable="${draggable}">
+      <span>${task.icon}</span><span>${task.label}</span>
+      ${!locked ? `<button class="remove-btn" data-remove-id="${task.id}" aria-label="Remove">✕</button>` : ''}
+    </span>`;
+  }
+
+  function renderWeekTab() {
+    if (!weekPlanCache) return;
+    const monday = getMonday(new Date());
+    const sunday = new Date(monday.getTime() + 6 * 86400000);
+    document.getElementById('weekRangeLabel').textContent = `${formatDate(monday).replace(/^\w+,\s/, '')} – ${formatDate(sunday)}`;
+
+    const fjcEvents = getFjcEventsForWeek(monday);
+    const isRaceWeek = fjcEvents.some(e => e.title.toUpperCase().includes('FJC'));
+    const lockedDayIndices = new Set(fjcEvents.map(e => (e.start.getDay() + 6) % 7));
+
+    const banner = document.getElementById('weekRaceBanner');
+    const poolCard = document.getElementById('weekPoolCard');
+    const addBtn = document.getElementById('weekAddTaskBtn');
+    const dayGrid = document.getElementById('weekDayGrid');
+
+    if (isRaceWeek) {
+      poolCard.style.display = 'none';
+      addBtn.style.display = 'none';
+      const eventsHtml = fjcEvents.map(e => `<div class="event-row"><span class="name">${e.title}</span><span class="date">${formatDate(e.start)}</span></div>`).join('');
+      banner.innerHTML = `<div class="race-week-banner">Race week — rest and prep only</div><div class="card">${eventsHtml || '<p class="placeholder-text">No FJC events found this week.</p>'}</div>`;
+      dayGrid.innerHTML = '';
+      renderWeekSidePanel();
+      return;
+    }
+
+    poolCard.style.display = '';
+    addBtn.style.display = '';
+    banner.innerHTML = '';
+
+    const pool = document.getElementById('weekPool');
+    const unassigned = weekPlanCache.filter(t => t.day === null);
+    pool.innerHTML = unassigned.length
+      ? unassigned.map(t => weekChipHtml(t)).join('')
+      : '<p class="placeholder-text" style="font-style:italic;">All sessions assigned</p>';
+
+    const todayIdx = todayDayIndex();
+    dayGrid.innerHTML = WEEK_DAY_NAMES.map((name, idx) => {
+      const date = new Date(monday.getTime() + idx * 86400000);
+      const dayTasks = weekPlanCache.filter(t => t.day === idx);
+      const lockedEvents = fjcEvents.filter(e => (e.start.getDay() + 6) % 7 === idx);
+      const lockedChips = lockedEvents.map(e => `<span class="week-chip locked-chip">🔒 ${e.title}</span>`).join('');
+      const chips = dayTasks.map(t => weekChipHtml(t)).join('');
+      return `<div class="week-day-card${idx === todayIdx ? ' is-today' : ''}" data-day-idx="${idx}">
+        <div class="week-day-card-header">
+          <span class="day-name">${WEEK_DAY_SHORT[idx]}</span>
+          <span class="day-date">${date.getDate()}/${date.getMonth() + 1}</span>
+        </div>
+        <div class="week-day-chips" data-day-idx="${idx}">${lockedChips}${chips}</div>
+      </div>`;
+    }).join('');
+
+    attachWeekDragHandlers();
+    renderWeekSidePanel();
+  }
+
+  function renderWeekSidePanel() {
+    if (!weekPlanCache) return;
+    const todayTask = getTodaysPlannedTask();
+    const tomorrowTask = getTomorrowsPlannedTask();
+    const todayEl = document.getElementById('weekTodayContent');
+    const tomorrowEl = document.getElementById('weekTomorrowContent');
+    if (todayEl) {
+      todayEl.innerHTML = todayTask
+        ? `<div class="item-row"><span style="font-size:20px;">${todayTask.icon}</span><span style="font-weight:700;">${todayTask.label}</span>${todayTask.done ? '<span class="placeholder-text" style="margin-left:auto;">logged ✓</span>' : ''}</div>`
+        : '<p class="placeholder-text">Nothing planned today.</p>';
+    }
+    if (tomorrowEl) {
+      tomorrowEl.innerHTML = tomorrowTask
+        ? `<div class="item-row"><span style="font-size:20px;">${tomorrowTask.icon}</span><span style="font-weight:700;">${tomorrowTask.label}</span></div>`
+        : '<p class="placeholder-text">Nothing planned tomorrow.</p>';
+    }
+
+    const progressEl = document.getElementById('weekProgressDetail');
+    if (progressEl) {
+      const groups = [
+        { label: 'Gym', match: t => t.label.startsWith('Gym') },
+        { label: 'Runs', match: t => /\d+(\.\d+)?k/i.test(t.label) && !t.label.toLowerCase().includes('cycle') },
+        { label: 'Cycle', match: t => t.label.toLowerCase().includes('cycle') },
+        { label: 'Golf', match: t => t.label.toLowerCase().includes('golf') }
+      ];
+      progressEl.innerHTML = groups.map(g => {
+        const planned = weekPlanCache.filter(g.match);
+        if (!planned.length) return '';
+        const done = planned.filter(t => t.done).length;
+        const pct = Math.round((done / planned.length) * 100);
+        return `<div class="week-progress-row">
+          <div class="label"><span>${g.label}</span><span>${done} / ${planned.length}</span></div>
+          <div class="bar"><div class="bar-fill" style="width:${pct}%;"></div></div>
+        </div>`;
+      }).join('') || '<p class="placeholder-text">No planned sessions yet.</p>';
+    }
+  }
+
+  function moveWeekTask(taskId, newDay) {
+    const task = weekPlanCache.find(t => t.id === taskId);
+    if (!task || task.done) return;
+    task.day = newDay;
+    persistWeekPlan();
+  }
+
+  function removeWeekTask(taskId) {
+    weekPlanCache = weekPlanCache.filter(t => t.id !== taskId);
+    persistWeekPlan();
+  }
+
+  function attachWeekDragHandlers() {
+    document.querySelectorAll('#weekDayGrid .week-chip[draggable="true"], #weekPool .week-chip[draggable="true"]').forEach(chip => {
+      chip.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', chip.dataset.taskId);
+        chip.classList.add('dragging');
+      });
+      chip.addEventListener('dragend', () => chip.classList.remove('dragging'));
+    });
+    document.querySelectorAll('.remove-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeWeekTask(btn.dataset.removeId);
+      });
+    });
+
+    const dropZones = [...document.querySelectorAll('.week-day-chips'), document.getElementById('weekPool')];
+    dropZones.forEach(zone => {
+      zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drop-target'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('drop-target'));
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('drop-target');
+        const taskId = e.dataTransfer.getData('text/plain');
+        const dayAttr = zone.dataset.dayIdx;
+        moveWeekTask(taskId, dayAttr !== undefined ? Number(dayAttr) : null);
+      });
+    });
+  }
+
+  // ---- Add task modal ----
+  let weekModalState = { icon: WEEK_ICONS[0], colour: WEEK_COLOURS[0], days: new Set() };
+
+  function renderWeekIconGrid() {
+    const grid = document.getElementById('weekIconGrid');
+    grid.innerHTML = WEEK_ICONS.map(icon =>
+      `<button type="button" class="${icon === weekModalState.icon ? 'selected' : ''}" data-icon="${icon}">${icon}</button>`
+    ).join('');
+    grid.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        weekModalState.icon = btn.dataset.icon;
+        renderWeekIconGrid();
+        updateWeekPreviewChip();
+      });
+    });
+  }
+
+  const WEEK_COLOUR_HEX = {
+    green: '#1D9E75', teal: '#0E8A9E', coral: '#E05C3A', amber: '#D4920A',
+    purple: '#7C5CBF', grey: '#555555', blue: '#2563EB', pink: '#C2185B'
+  };
+
+  function renderWeekColourRow() {
+    const row = document.getElementById('weekColourRow');
+    row.innerHTML = WEEK_COLOURS.map(c =>
+      `<span class="week-colour-swatch${c === weekModalState.colour ? ' selected' : ''}" data-colour="${c}" style="background:${WEEK_COLOUR_HEX[c]};"></span>`
+    ).join('');
+    row.querySelectorAll('.week-colour-swatch').forEach(sw => {
+      sw.addEventListener('click', () => {
+        weekModalState.colour = sw.dataset.colour;
+        renderWeekColourRow();
+        updateWeekPreviewChip();
+      });
+    });
+  }
+
+  function renderWeekDayBtns() {
+    const wrap = document.getElementById('weekDayBtns');
+    wrap.innerHTML = WEEK_DAY_SHORT.map((d, idx) =>
+      `<button type="button" class="${weekModalState.days.has(idx) ? 'selected' : ''}" data-day-idx="${idx}">${d}</button>`
+    ).join('');
+    wrap.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.dayIdx);
+        if (weekModalState.days.has(idx)) weekModalState.days.delete(idx); else weekModalState.days.add(idx);
+        renderWeekDayBtns();
+      });
+    });
+  }
+
+  function updateWeekPreviewChip() {
+    const name = document.getElementById('weekTaskNameInput').value.trim() || 'New task';
+    const previewTask = { icon: weekModalState.icon, label: name, colour: weekModalState.colour, done: false };
+    document.getElementById('weekPreviewRow').innerHTML = weekChipHtml(previewTask, { locked: true });
+  }
+
+  function openWeekModal() {
+    weekModalState = { icon: WEEK_ICONS[0], colour: WEEK_COLOURS[0], days: new Set() };
+    document.getElementById('weekTaskNameInput').value = '';
+    renderWeekIconGrid();
+    renderWeekColourRow();
+    renderWeekDayBtns();
+    updateWeekPreviewChip();
+    document.getElementById('weekModalOverlay').classList.add('open');
+  }
+
+  function closeWeekModal() {
+    document.getElementById('weekModalOverlay').classList.remove('open');
+  }
+
+  function submitWeekTask() {
+    const name = document.getElementById('weekTaskNameInput').value.trim();
+    if (!name) { alert('Give the task a name first.'); return; }
+    if (!weekPlanCache) weekPlanCache = [];
+    const days = weekModalState.days.size ? [...weekModalState.days] : [null];
+    days.forEach(day => {
+      weekPlanCache.push({ id: weekUuid(), icon: weekModalState.icon, label: name, colour: weekModalState.colour, day, done: false });
+    });
+    weekPlanCacheKey = currentWeekKey();
+    closeWeekModal();
+    persistWeekPlan();
+  }
+
+  document.getElementById('weekAddTaskBtn').addEventListener('click', openWeekModal);
+  document.getElementById('weekAddTaskBtn2').addEventListener('click', openWeekModal);
+  document.getElementById('weekModalCloseBtn').addEventListener('click', closeWeekModal);
+  document.getElementById('weekModalCancelBtn').addEventListener('click', closeWeekModal);
+  document.getElementById('weekModalSaveBtn').addEventListener('click', submitWeekTask);
+  document.getElementById('weekTaskNameInput').addEventListener('input', updateWeekPreviewChip);
+  document.getElementById('weekModalOverlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('weekModalOverlay')) closeWeekModal();
+  });
+
+  // Training-tab tick-off -> matching Week-plan task, by keyword on label.
+  const WEEK_TARGET_KEYWORDS = {
+    gym1: ['gym'], gym2: ['gym'],
+    run5k: ['5k'], run7_5k: ['7.5k'], run10k: ['10k'],
+    cycle40k: ['cycle'], golf: ['golf'], padel: ['padel'], rest: ['rest']
+  };
+
+  function markWeekTaskDoneForTarget(targetId, done) {
+    if (!weekPlanCache || weekPlanCacheKey !== currentWeekKey()) return;
+    const keywords = WEEK_TARGET_KEYWORDS[targetId];
+    if (!keywords) return;
+    const match = done
+      ? weekPlanCache.find(t => !t.done && keywords.some(k => t.label.toLowerCase().includes(k)))
+      : weekPlanCache.find(t => t.done && keywords.some(k => t.label.toLowerCase().includes(k)));
+    if (match) { match.done = done; persistWeekPlan(); }
+  }
+
   window.addEventListener('load', () => {
     setTimeout(async () => {
       seedHistoricalCalories();
@@ -2705,6 +3479,7 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
       renderRunningPbs();
       renderGym1rms();
       renderWorkoutLibrary();
+      await loadWeekTab();
       updateTrainingPlan();
     }, 400);
   });
