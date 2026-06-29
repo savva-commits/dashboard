@@ -1387,18 +1387,21 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
 
   // Yesterday's TDEE (from WHOOP's completed cycle energy expenditure)
   // minus 150, cached per day just like the other WHOOP-derived values.
+  // Average TDEE across the last 7 completed WHOOP cycles, minus 150 —
+  // smoother than a single day, which can swing a lot cycle to cycle.
   async function loadCalorieTarget(force) {
     const cache = getCalorieTargetCache();
     if (!force && cache && cache.date === todayKey()) return cache.target;
     if (!getWhoopToken()) return cache ? cache.target : null;
     try {
-      const cycleData = await whoopFetch('/v2/cycle?limit=4');
+      const cycleData = await whoopFetch('/v2/cycle?limit=10');
       const records = (cycleData.records || [])
         .filter(r => r.end && r.score && r.score.kilojoule)
-        .sort((a, b) => new Date(b.start) - new Date(a.start));
-      const lastCompleted = records[0];
-      if (!lastCompleted) return cache ? cache.target : null;
-      const tdee = lastCompleted.score.kilojoule / KJ_PER_KCAL;
+        .sort((a, b) => new Date(b.start) - new Date(a.start))
+        .slice(0, 7);
+      if (records.length === 0) return cache ? cache.target : null;
+      const avgKj = records.reduce((sum, r) => sum + r.score.kilojoule, 0) / records.length;
+      const tdee = avgKj / KJ_PER_KCAL;
       const target = Math.round(tdee - 150);
       localStorage.setItem('calorie_target_cache', JSON.stringify({ date: todayKey(), target }));
       return target;
@@ -1579,7 +1582,9 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     }
     const el = document.getElementById('avgCaloriesValue');
     if (!el) return;
-    el.innerHTML = count ? Math.round(sum / count) + ' <small>kcal</small>' : '-- <small>kcal</small>';
+    // Genuinely no data yet until at least one day's food log exists from
+    // before today — this fills in naturally after a day or two of use.
+    el.innerHTML = count ? Math.round(sum / count) + ' <small>kcal</small>' : '<small>No data yet</small>';
   }
 
   window.addEventListener('load', () => {
