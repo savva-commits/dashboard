@@ -1568,6 +1568,24 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     document.getElementById('cancelFoodBtn').click();
   });
 
+  // One-time seed so the 7-day average isn't empty while real data builds
+  // up. Only fills days that have no real entry yet — once a day is
+  // actually logged, this never overwrites it, and as days roll out of the
+  // 7-day window the seeded values disappear on their own.
+  function seedHistoricalCalories() {
+    if (localStorage.getItem('nutrition_seeded')) return;
+    const totals = getDailyTotalsMap();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date(today.getTime() - i * 86400000);
+      const key = d.toISOString().slice(0, 10);
+      if (!totals[key]) totals[key] = { calories: 2150, protein: 0 };
+    }
+    localStorage.setItem('daily_totals', JSON.stringify(totals));
+    localStorage.setItem('nutrition_seeded', '1');
+  }
+
   // Static 7-day average — last 7 calendar days excluding today, computed
   // once on load rather than live during the day.
   function render7DayAvgCalories() {
@@ -1589,6 +1607,7 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
 
   window.addEventListener('load', () => {
     setTimeout(() => {
+      seedHistoricalCalories();
       renderNutritionTab();
       render7DayAvgCalories();
     }, 400);
