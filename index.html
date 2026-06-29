@@ -1323,13 +1323,11 @@
   // every reload — reuse the cache until the next calendar day, or until
   // the user explicitly reconnects.
   async function loadCalendar(force) {
-    const token = getStoredToken();
-    if (!token) {
-      document.getElementById('connectCalendarBtn').textContent = 'Connect Google Calendar';
-      return;
-    }
-    document.getElementById('connectCalendarBtn').textContent = 'Reconnect Google Calendar';
-
+    // Check the same-day cache before touching the token at all. Google's
+    // access token only lasts ~1hr with no refresh token in this flow, so
+    // checking the token first (as this used to) meant any reload after
+    // the token expired would blank the tab even with perfectly good
+    // same-day data cached — that's what looked like a "random reset".
     const cacheDate = localStorage.getItem('calendar_cache_date');
     const cachedFjcRaw = localStorage.getItem('fjc_events_cache');
     const cachedLessonsRaw = localStorage.getItem('lesson_events_cache');
@@ -1339,8 +1337,16 @@
       renderRacingTab(fjcEvents);
       renderTrainingForRaceWeek(fjcEvents);
       renderNextSchoolDay(lessonEvents);
+      document.getElementById('connectCalendarBtn').textContent = getStoredToken() ? 'Reconnect Google Calendar' : 'Connect Google Calendar';
       return;
     }
+
+    const token = getStoredToken();
+    if (!token) {
+      document.getElementById('connectCalendarBtn').textContent = 'Connect Google Calendar';
+      return;
+    }
+    document.getElementById('connectCalendarBtn').textContent = 'Reconnect Google Calendar';
 
     try {
       const events = await fetchCalendarEvents(token.access_token, CALENDAR_ID);
