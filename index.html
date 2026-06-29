@@ -1202,6 +1202,12 @@
 </nav>
 
 <script>
+  // Declared first so any code that runs during initial page load (calendar,
+  // WHOOP, training-plan rendering) can safely read these before the Week
+  // tab's own init code further down ever executes.
+  let weekPlanCache = null;
+  let weekPlanCacheKey = null;
+
   document.getElementById('topbarDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
 
   // ---- Settings: layout preference (mobile/desktop) ----
@@ -3048,9 +3054,6 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
       { icon: '🎾', label: 'Padel', colour: 'purple' }
     ].map(t => ({ id: weekUuid(), icon: t.icon, label: t.label, colour: t.colour, day: null, done: false }));
   }
-
-  let weekPlanCache = null;
-  let weekPlanCacheKey = null;
 
   function todayDayIndex() {
     return (new Date().getDay() + 6) % 7; // Mon=0 .. Sun=6
