@@ -35,6 +35,10 @@
   }
   header.topbar{
     padding:20px 20px 8px;
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
   }
   header.topbar h1{
     margin:0;
@@ -46,6 +50,112 @@
     margin:2px 0 0;
     color:var(--muted);
     font-size:14px;
+  }
+  #settingsGearBtn{
+    background:var(--card);
+    border:none;
+    box-shadow:var(--shadow);
+    border-radius:12px;
+    width:40px;
+    height:40px;
+    font-size:18px;
+    cursor:pointer;
+    flex-shrink:0;
+    color:var(--ink);
+  }
+
+  .settings-overlay{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(20,32,20,0.45);
+    z-index:1000;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .settings-overlay.open{display:flex;}
+  .settings-modal{
+    background:var(--card);
+    border-radius:20px;
+    padding:20px;
+    width:100%;
+    max-width:340px;
+    box-shadow:0 12px 32px rgba(0,0,0,0.25);
+  }
+  .settings-modal-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .settings-modal-header h2{
+    margin:0;
+    font-size:18px;
+    font-weight:800;
+  }
+  .settings-modal-header button{
+    background:none;
+    border:none;
+    font-size:24px;
+    line-height:1;
+    cursor:pointer;
+    color:var(--muted);
+    padding:0 4px;
+  }
+  .settings-label{
+    font-size:13px;
+    font-weight:700;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    margin-bottom:8px;
+  }
+  .segmented{
+    display:flex;
+    background:#eef2ec;
+    border-radius:12px;
+    padding:4px;
+    gap:4px;
+  }
+  .segmented-btn{
+    flex:1;
+    border:none;
+    background:none;
+    padding:10px;
+    border-radius:9px;
+    font-weight:700;
+    font-size:14px;
+    color:var(--muted);
+    cursor:pointer;
+  }
+  .segmented-btn.active{
+    background:var(--card);
+    color:var(--ink);
+    box-shadow:0 1px 4px rgba(0,0,0,0.12);
+  }
+
+  .split-layout{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .split-col{
+    flex:1;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  body[data-layout="desktop"] main{
+    max-width:1100px;
+  }
+  body[data-layout="desktop"] .split-layout{
+    flex-direction:row;
+    align-items:flex-start;
+  }
+  body[data-layout="desktop"] #whoopMetricGrid{
+    grid-template-columns:repeat(4, 1fr);
   }
   main{
     padding:12px 16px 24px;
@@ -391,9 +501,29 @@
 <body>
 
 <header class="topbar">
-  <h1>Savva HQ</h1>
-  <p id="topbarDate"></p>
+  <div>
+    <h1>Savva HQ</h1>
+    <p id="topbarDate"></p>
+  </div>
+  <button id="settingsGearBtn" aria-label="Settings">⚙</button>
 </header>
+
+<div id="settingsOverlay" class="settings-overlay">
+  <div class="settings-modal">
+    <div class="settings-modal-header">
+      <h2>Settings</h2>
+      <button id="settingsCloseBtn" aria-label="Close">&times;</button>
+    </div>
+    <div class="settings-row">
+      <div class="settings-label">Layout</div>
+      <div class="segmented" id="layoutSegmented">
+        <button data-layout="mobile" class="segmented-btn">Mobile</button>
+        <button data-layout="desktop" class="segmented-btn">Desktop</button>
+      </div>
+    </div>
+    <p class="placeholder-text" style="margin-top:14px;">More settings coming soon.</p>
+  </div>
+</div>
 
 <main>
 
@@ -406,7 +536,7 @@
       <div class="recovery-label" id="recoveryLabel">Recovery — connect WHOOP</div>
     </div>
 
-    <div class="metric-grid">
+    <div class="metric-grid" id="whoopMetricGrid">
       <div class="metric-card accent-teal">
         <div class="label">HRV</div>
         <div class="value" id="hrvValue">-- <small>ms</small></div>
@@ -423,16 +553,28 @@
         <div class="label">Sleep</div>
         <div class="value" id="sleepHoursValue">-- <small>h</small></div>
       </div>
-      <div class="metric-card accent-coral">
-        <div class="label">Avg calories · 7d</div>
-        <div class="value" id="avgCaloriesValue">-- <small>kcal</small></div>
-      </div>
     </div>
 
-    <div class="card">
-      <h2>14-Day Recovery Trend</h2>
-      <canvas id="trendChart" width="500" height="120"></canvas>
-      <p class="placeholder-text" id="trendPlaceholder" style="margin-top:8px;">Connect WHOOP to see your trend.</p>
+    <div class="card metric-card accent-coral">
+      <div class="label">Avg calories · 7d</div>
+      <div class="value" id="avgCaloriesValue">-- <small>kcal</small></div>
+    </div>
+
+    <div class="split-layout">
+      <div class="split-col">
+        <div class="card">
+          <h2>14-Day Recovery Trend</h2>
+          <canvas id="trendChart" width="500" height="120"></canvas>
+          <p class="placeholder-text" id="trendPlaceholder" style="margin-top:8px;">Connect WHOOP to see your trend.</p>
+        </div>
+      </div>
+      <div class="split-col">
+        <div class="card">
+          <h2>Briefing Preview</h2>
+          <div id="briefingPreview"><p class="placeholder-text">No briefing yet — open the Briefing tab to chat.</p></div>
+          <button class="btn secondary" id="openBriefingFromHomeBtn" style="margin-top:10px;">Open Briefing</button>
+        </div>
+      </div>
     </div>
 
     <button class="btn" id="connectWhoopBtn">Connect WHOOP</button>
@@ -441,21 +583,35 @@
 
   <!-- CALENDAR -->
   <section class="tab-panel" id="tab-racing">
-    <div class="card countdown">
-      <div class="days" id="countdownDays">--</div>
-      <div class="label" id="countdownLabel">Days to next round</div>
-    </div>
-    <div class="card">
-      <h2>Next Round</h2>
-      <p class="placeholder-text" id="nextRoundText">Connect Google Calendar to load FJC race events.</p>
-    </div>
-    <div class="card">
-      <h2>Next Events</h2>
-      <div id="nextEventsList"><p class="placeholder-text">Upcoming events will appear here once Google Calendar is connected.</p></div>
-    </div>
-    <div class="card">
-      <h2 id="nextSchoolDayHeading">Next School Day</h2>
-      <div id="schoolDayList"><p class="placeholder-text">Lessons will appear here once Google Calendar is connected.</p></div>
+    <div class="split-layout">
+      <div class="split-col">
+        <div class="card countdown">
+          <div class="days" id="countdownDays">--</div>
+          <div class="label" id="countdownLabel">Days to next round</div>
+        </div>
+        <div class="card">
+          <h2>Next Round</h2>
+          <p class="placeholder-text" id="nextRoundText">Connect Google Calendar to load FJC race events.</p>
+        </div>
+        <div class="card">
+          <h2>Standalone Tests</h2>
+          <div id="standaloneTestsList"><p class="placeholder-text">Testing days will appear here once Google Calendar is connected.</p></div>
+        </div>
+        <div class="card">
+          <h2 id="nextSchoolDayHeading">Next School Day</h2>
+          <div id="schoolDayList"><p class="placeholder-text">Lessons will appear here once Google Calendar is connected.</p></div>
+        </div>
+      </div>
+      <div class="split-col">
+        <div class="card">
+          <h2>Next Events</h2>
+          <div id="nextEventsList"><p class="placeholder-text">Upcoming events will appear here once Google Calendar is connected.</p></div>
+        </div>
+        <div class="card">
+          <h2>Full Season</h2>
+          <div id="fullSeasonList"><p class="placeholder-text">Season list will appear here once Google Calendar is connected.</p></div>
+        </div>
+      </div>
     </div>
     <button class="btn secondary" id="connectCalendarBtn">Connect Google Calendar</button>
   </section>
@@ -463,32 +619,48 @@
   <!-- TRAINING -->
   <section class="tab-panel" id="tab-training">
     <div id="raceWeekBanner"></div>
-    <div class="card" id="trainingPlanCard">
-      <h2>This Week's Targets</h2>
-      <div id="suggestionBanner"></div>
-      <div id="weeklyTargetList"></div>
+    <div id="suggestionBanner"></div>
+    <div class="split-layout">
+      <div class="split-col">
+        <div class="card" id="trainingPlanCard">
+          <h2>This Week's Targets</h2>
+          <div id="weeklyTargetList"></div>
+        </div>
+      </div>
+      <div class="split-col">
+        <div class="card" id="weekProgressCard">
+          <h2>Week Progress</h2>
+          <div id="weekProgressContent"></div>
+        </div>
+      </div>
     </div>
   </section>
 
   <!-- NUTRITION -->
   <section class="tab-panel" id="tab-nutrition">
-    <div class="card">
-      <div class="ring-row" id="nutritionRings"></div>
-    </div>
-    <div class="card">
-      <h2>Food Log</h2>
-      <div id="foodLogList"></div>
-      <button class="btn secondary" id="addFoodBtn" style="margin-top:10px;">+ Add Food</button>
-      <div id="addFoodForm" style="display:none;margin-top:14px;">
-        <input type="text" id="foodNameInput" placeholder="Food name" style="width:100%;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;margin-bottom:8px;">
-        <button class="btn secondary" id="estimateFoodBtn" style="margin-bottom:8px;">Estimate with AI</button>
-        <div style="display:flex;gap:8px;margin-bottom:8px;">
-          <input type="number" id="foodCaloriesInput" placeholder="Calories" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
-          <input type="number" id="foodProteinInput" placeholder="Protein (g)" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
+    <div class="split-layout">
+      <div class="split-col">
+        <div class="card">
+          <div class="ring-row" id="nutritionRings"></div>
+          <button class="btn secondary" id="addFoodBtn" style="margin-top:14px;">+ Add Food</button>
+          <div id="addFoodForm" style="display:none;margin-top:14px;">
+            <input type="text" id="foodNameInput" placeholder="Food name" style="width:100%;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;margin-bottom:8px;">
+            <button class="btn secondary" id="estimateFoodBtn" style="margin-bottom:8px;">Estimate with AI</button>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <input type="number" id="foodCaloriesInput" placeholder="Calories" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
+              <input type="number" id="foodProteinInput" placeholder="Protein (g)" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn" id="saveFoodBtn">Save</button>
+              <button class="btn secondary" id="cancelFoodBtn">Cancel</button>
+            </div>
+          </div>
         </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn" id="saveFoodBtn">Save</button>
-          <button class="btn secondary" id="cancelFoodBtn">Cancel</button>
+      </div>
+      <div class="split-col">
+        <div class="card">
+          <h2>Food Log</h2>
+          <div id="foodLogList"></div>
         </div>
       </div>
     </div>
@@ -496,20 +668,34 @@
 
   <!-- BRIEFING -->
   <section class="tab-panel" id="tab-briefing">
-    <div class="card" id="anthropicKeyCard">
-      <h2>Anthropic API Key</h2>
-      <p class="placeholder-text">Stored only in this browser's localStorage — never committed to the repo. Get a key at console.anthropic.com.</p>
-      <input type="password" id="anthropicKeyInput" placeholder="sk-ant-..." style="width:100%;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;margin:10px 0;">
-      <button class="btn secondary" id="saveAnthropicKeyBtn">Save Key</button>
-    </div>
-    <div class="card">
-      <h2>Briefing Chat</h2>
-      <div id="chatMessages" style="display:flex;flex-direction:column;gap:10px;max-height:50vh;overflow-y:auto;margin-bottom:12px;"></div>
-      <div style="display:flex;gap:8px;">
-        <input type="text" id="chatInput" placeholder="How are you feeling today?" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
-        <button class="btn" id="chatSendBtn" style="width:auto;padding:12px 18px;">Send</button>
+    <div class="split-layout">
+      <div class="split-col">
+        <div class="card" id="anthropicKeyCard">
+          <h2>Anthropic API Key</h2>
+          <p class="placeholder-text">Stored only in this browser's localStorage — never committed to the repo. Get a key at console.anthropic.com.</p>
+          <input type="password" id="anthropicKeyInput" placeholder="sk-ant-..." style="width:100%;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;margin:10px 0;">
+          <button class="btn secondary" id="saveAnthropicKeyBtn">Save Key</button>
+        </div>
+        <div class="card">
+          <h2>Briefing Chat</h2>
+          <div id="chatMessages" style="display:flex;flex-direction:column;gap:10px;max-height:50vh;overflow-y:auto;margin-bottom:12px;"></div>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="chatInput" placeholder="How are you feeling today?" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
+            <button class="btn" id="chatSendBtn" style="width:auto;padding:12px 18px;">Send</button>
+          </div>
+          <button class="btn secondary" id="chatResetBtn" style="margin-top:10px;">Reset Chat</button>
+        </div>
       </div>
-      <button class="btn secondary" id="chatResetBtn" style="margin-top:10px;">Reset Chat</button>
+      <div class="split-col">
+        <div class="card">
+          <h2>Today's Snapshot</h2>
+          <div id="todaySnapshotContent"></div>
+        </div>
+        <div class="card">
+          <h2>Next Race</h2>
+          <div id="nextRaceCardContent"></div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -525,6 +711,41 @@
 
 <script>
   document.getElementById('topbarDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+
+  // ---- Settings: layout preference (mobile/desktop) ----
+  const LAYOUT_PREF_KEY = 'layout_preference';
+
+  function applyLayout(layout) {
+    document.body.setAttribute('data-layout', layout);
+    document.querySelectorAll('#layoutSegmented .segmented-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.layout === layout);
+    });
+  }
+
+  function initLayout() {
+    const saved = localStorage.getItem(LAYOUT_PREF_KEY);
+    const layout = saved || (window.innerWidth >= 900 ? 'desktop' : 'mobile');
+    applyLayout(layout);
+  }
+  initLayout();
+
+  document.querySelectorAll('#layoutSegmented .segmented-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      localStorage.setItem(LAYOUT_PREF_KEY, btn.dataset.layout);
+      applyLayout(btn.dataset.layout);
+    });
+  });
+
+  const settingsOverlay = document.getElementById('settingsOverlay');
+  document.getElementById('settingsGearBtn').addEventListener('click', () => {
+    settingsOverlay.classList.add('open');
+  });
+  document.getElementById('settingsCloseBtn').addEventListener('click', () => {
+    settingsOverlay.classList.remove('open');
+  });
+  settingsOverlay.addEventListener('click', (e) => {
+    if (e.target === settingsOverlay) settingsOverlay.classList.remove('open');
+  });
 
   const tabButtons = document.querySelectorAll('nav.tabbar button');
   const panels = document.querySelectorAll('.tab-panel');
@@ -741,6 +962,35 @@
       });
     }
 
+    const standaloneTestsList = document.getElementById('standaloneTestsList');
+    const upcomingTests = upcoming.filter(e => e.title.toUpperCase().includes('TESTING'));
+    standaloneTestsList.innerHTML = '';
+    if (upcomingTests.length === 0) {
+      standaloneTestsList.innerHTML = '<p class="placeholder-text">No upcoming standalone test days.</p>';
+    } else {
+      upcomingTests.forEach(e => {
+        const row = document.createElement('div');
+        row.className = 'event-row';
+        row.innerHTML = `<span class="name">${e.title}</span><span class="date">${formatDate(e.start)}</span>`;
+        standaloneTestsList.appendChild(row);
+      });
+    }
+
+    const fullSeasonList = document.getElementById('fullSeasonList');
+    const all = [...past, ...upcoming];
+    fullSeasonList.innerHTML = '';
+    if (all.length === 0) {
+      fullSeasonList.innerHTML = '<p class="placeholder-text">No FJC events found on the calendar.</p>';
+    } else {
+      all.forEach(e => {
+        const row = document.createElement('div');
+        row.className = 'event-row' + (e.start < now ? ' faded' : '');
+        row.innerHTML = `<span class="name">${e.title}</span><span class="date">${formatDate(e.start)}</span>`;
+        fullSeasonList.appendChild(row);
+      });
+    }
+
+    renderNextRaceCard(upcoming[0] || null);
   }
 
   function getMonday(d) {
@@ -845,20 +1095,43 @@
       });
       list.appendChild(row);
     });
+
+    renderWeekProgress(state);
+  }
+
+  function renderWeekProgress(state) {
+    const el = document.getElementById('weekProgressContent');
+    if (!el) return;
+    const required = WEEKLY_TARGETS.filter(t => !t.bonus);
+    const completedCount = required.filter(t => state[t.id]).length;
+    const pct = Math.round((completedCount / required.length) * 100);
+    const padel = WEEKLY_TARGETS.find(t => t.bonus);
+    const padelDone = !!state[padel.id];
+    el.innerHTML = `
+      <div style="font-size:28px;font-weight:800;letter-spacing:-0.02em;">${completedCount} / ${required.length}</div>
+      <div class="placeholder-text" style="margin-bottom:10px;">required targets complete</div>
+      <div style="background:#eef2ec;border-radius:8px;height:10px;overflow:hidden;margin-bottom:10px;">
+        <div style="background:var(--lime);height:100%;width:${pct}%;"></div>
+      </div>
+      <div class="placeholder-text">Padel (bonus): ${padelDone ? 'done' : 'not yet'}</div>`;
   }
 
   function updateTrainingPlan() {
     const banner = document.getElementById('raceWeekBanner');
     const planCard = document.getElementById('trainingPlanCard');
+    const progressCard = document.getElementById('weekProgressCard');
     const isRaceWeek = localStorage.getItem('is_race_week') === '1';
 
     if (isRaceWeek) {
       banner.innerHTML = '<div class="race-week-banner">Race week — rest and prep only</div>';
       planCard.style.display = 'none';
+      if (progressCard) progressCard.style.display = 'none';
+      document.getElementById('suggestionBanner').innerHTML = '';
       return;
     }
     banner.innerHTML = '';
     planCard.style.display = '';
+    if (progressCard) progressCard.style.display = '';
     renderWeeklyTargets();
   }
 
@@ -1088,6 +1361,39 @@
     if (d.score !== null && d.score !== undefined) localStorage.setItem('latest_recovery_score', String(d.score));
     document.getElementById('connectWhoopBtn').textContent = 'Reconnect WHOOP';
     updateTrainingPlan();
+    renderTodaySnapshot();
+  }
+
+  function renderTodaySnapshot() {
+    const el = document.getElementById('todaySnapshotContent');
+    if (!el) return;
+    const recovery = localStorage.getItem('latest_recovery_score');
+    const hrv = document.getElementById('hrvValue') ? document.getElementById('hrvValue').textContent.trim() : '--';
+    const rhr = document.getElementById('rhrValue') ? document.getElementById('rhrValue').textContent.trim() : '--';
+    const sleepPerf = document.getElementById('sleepPerfValue') ? document.getElementById('sleepPerfValue').textContent.trim() : '--';
+    const sleepHours = document.getElementById('sleepHoursValue') ? document.getElementById('sleepHoursValue').textContent.trim() : '--';
+    el.innerHTML = `
+      <div class="event-row"><span class="name">Recovery</span><span class="date">${recovery !== null ? recovery + '%' : '--'}</span></div>
+      <div class="event-row"><span class="name">HRV</span><span class="date">${hrv}</span></div>
+      <div class="event-row"><span class="name">RHR</span><span class="date">${rhr}</span></div>
+      <div class="event-row"><span class="name">Sleep Perf</span><span class="date">${sleepPerf}</span></div>
+      <div class="event-row"><span class="name">Sleep</span><span class="date">${sleepHours}</span></div>`;
+  }
+
+  function renderNextRaceCard(nextEvent) {
+    const el = document.getElementById('nextRaceCardContent');
+    if (!el) return;
+    if (!nextEvent) {
+      el.innerHTML = '<p class="placeholder-text">No upcoming FJC round on the calendar.</p>';
+      return;
+    }
+    const d = daysUntil(nextEvent.start);
+    el.innerHTML = `
+      <div class="countdown" style="padding:4px 0;">
+        <div class="days">${d}</div>
+        <div class="label">${d === 1 ? 'Day to' : 'Days to'} ${nextEvent.title}</div>
+      </div>
+      <p class="placeholder-text" style="text-align:center;">${formatDate(nextEvent.start)}</p>`;
   }
 
   // WHOOP recovery/sleep are computed once per day and don't change again
@@ -1291,7 +1597,25 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
       container.appendChild(row);
     });
     container.scrollTop = container.scrollHeight;
+    renderBriefingPreview();
   }
+
+  function renderBriefingPreview() {
+    const el = document.getElementById('briefingPreview');
+    if (!el) return;
+    const history = getChatHistory();
+    const lastAssistant = [...history].reverse().find(m => m.role === 'assistant');
+    if (!lastAssistant) {
+      el.innerHTML = '<p class="placeholder-text">No briefing yet — open the Briefing tab to chat.</p>';
+      return;
+    }
+    const preview = lastAssistant.content.length > 220 ? lastAssistant.content.slice(0, 220) + '…' : lastAssistant.content;
+    el.innerHTML = `<p class="placeholder-text" style="color:var(--ink);">${preview}</p>`;
+  }
+
+  document.getElementById('openBriefingFromHomeBtn').addEventListener('click', () => {
+    document.querySelector('nav.tabbar button[data-tab="briefing"]').click();
+  });
 
   async function sendChatMessage() {
     const key = getAnthropicKey();
@@ -1610,6 +1934,9 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
       seedHistoricalCalories();
       renderNutritionTab();
       render7DayAvgCalories();
+      renderTodaySnapshot();
+      renderBriefingPreview();
+      if (!getStoredToken()) renderNextRaceCard(null);
     }, 400);
   });
 </script>
