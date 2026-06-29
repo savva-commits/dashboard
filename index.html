@@ -1382,7 +1382,7 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
   }
 
   function getCalorieTargetCache() {
-    try { return JSON.parse(localStorage.getItem('calorie_target_cache') || 'null'); } catch (e) { return null; }
+    try { return JSON.parse(localStorage.getItem('calorie_target_cache_v2') || 'null'); } catch (e) { return null; }
   }
 
   // Yesterday's TDEE (from WHOOP's completed cycle energy expenditure)
@@ -1403,7 +1403,7 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
       const avgKj = records.reduce((sum, r) => sum + r.score.kilojoule, 0) / records.length;
       const tdee = avgKj / KJ_PER_KCAL;
       const target = Math.round(tdee - 150);
-      localStorage.setItem('calorie_target_cache', JSON.stringify({ date: todayKey(), target }));
+      localStorage.setItem('calorie_target_cache_v2', JSON.stringify({ date: todayKey(), target }));
       return target;
     } catch (err) {
       console.error(err);
