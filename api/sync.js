@@ -7,7 +7,7 @@
 
 const { readSyncData, updateSyncData } = require('./_github');
 
-const ALLOWED_KEYS = ['savedRecipes', 'runningPbs', 'gym1rms', 'workoutHistory', 'weeklyTargets', 'dailyTotals'];
+const ALLOWED_KEYS = ['savedRecipes', 'runningPbs', 'gym1rms', 'workoutHistory', 'weeklyTargets', 'dailyTotals', 'exerciseWeights'];
 
 module.exports = async (req, res) => {
   const allowedOrigin = process.env.ALLOWED_ORIGIN || '*';

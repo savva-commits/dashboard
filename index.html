@@ -927,6 +927,14 @@
       // show up without needing a full page reload.
       if (btn.dataset.tab === 'nutrition' && typeof syncFoodLogFromRemote === 'function') {
         syncFoodLogFromRemote();
+        syncSavedRecipesFromRemote().then(renderRecipeList);
+      }
+      if (btn.dataset.tab === 'training' && typeof syncWeeklyTargetsFromRemote === 'function') {
+        syncWeeklyTargetsFromRemote().then(updateTrainingPlan);
+      }
+      if (btn.dataset.tab === 'gym' && typeof syncRunningPbsFromRemote === 'function') {
+        Promise.all([syncRunningPbsFromRemote(), syncGym1rmsFromRemote(), syncExerciseWeightsFromRemote(), syncWorkoutHistoryFromRemote()])
+          .then(() => { renderRunningPbs(); renderGym1rms(); renderWorkoutLibrary(); });
       }
     });
   });
@@ -1209,6 +1217,14 @@
     const { key, state } = getWeeklyState();
     state[id] = complete;
     localStorage.setItem(key, JSON.stringify(state));
+    syncPush('weeklyTargets', { weekKey: currentWeekKey(), state });
+  }
+
+  async function syncWeeklyTargetsFromRemote() {
+    const remote = await syncPull('weeklyTargets');
+    if (remote && remote.weekKey === currentWeekKey() && remote.state) {
+      localStorage.setItem('weekly_targets_' + remote.weekKey, JSON.stringify(remote.state));
+    }
   }
 
   // Tier preference order by recovery band — first incomplete match wins.
@@ -1884,8 +1900,33 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     return totals;
   }
 
-  // ---- Cross-device food log sync (Vercel KV) ----
+  // ---- Cross-device sync (private GitHub repo backend) ----
   const FOOD_LOG_PROXY_URL = 'https://dashboard20-iota.vercel.app/api/food-log';
+  const SYNC_PROXY_URL = 'https://dashboard20-iota.vercel.app/api/sync';
+
+  async function syncPull(key) {
+    try {
+      const res = await fetch(`${SYNC_PROXY_URL}?key=${key}`);
+      if (!res.ok) return undefined;
+      const data = await res.json();
+      return data.value;
+    } catch (err) {
+      console.error('sync pull failed', key, err);
+      return undefined;
+    }
+  }
+
+  async function syncPush(key, value) {
+    try {
+      await fetch(SYNC_PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value })
+      });
+    } catch (err) {
+      console.error('sync push failed', key, err);
+    }
+  }
 
   async function pushFoodLogRemote(log) {
     try {
@@ -2122,6 +2163,12 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
 
   function saveSavedRecipes(recipes) {
     localStorage.setItem('saved_recipes', JSON.stringify(recipes));
+    syncPush('savedRecipes', recipes);
+  }
+
+  async function syncSavedRecipesFromRemote() {
+    const remote = await syncPull('savedRecipes');
+    if (Array.isArray(remote)) localStorage.setItem('saved_recipes', JSON.stringify(remote));
   }
 
   let editingRecipeId = null;
@@ -2273,12 +2320,22 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
   }
   function saveRunningPbs(data) {
     localStorage.setItem('running_pbs', JSON.stringify(data));
+    syncPush('runningPbs', data);
+  }
+  async function syncRunningPbsFromRemote() {
+    const remote = await syncPull('runningPbs');
+    if (remote && typeof remote === 'object') localStorage.setItem('running_pbs', JSON.stringify(remote));
   }
   function getGym1rms() {
     try { return JSON.parse(localStorage.getItem('gym_1rms') || '{}'); } catch (e) { return {}; }
   }
   function saveGym1rms(data) {
     localStorage.setItem('gym_1rms', JSON.stringify(data));
+    syncPush('gym1rms', data);
+  }
+  async function syncGym1rmsFromRemote() {
+    const remote = await syncPull('gym1rms');
+    if (remote && typeof remote === 'object') localStorage.setItem('gym_1rms', JSON.stringify(remote));
   }
 
   function timeToSeconds(mmss) {
@@ -2465,12 +2522,22 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     const weights = getExerciseWeights();
     weights[slug] = weight;
     localStorage.setItem('exercise_weights', JSON.stringify(weights));
+    syncPush('exerciseWeights', weights);
+  }
+  async function syncExerciseWeightsFromRemote() {
+    const remote = await syncPull('exerciseWeights');
+    if (remote && typeof remote === 'object') localStorage.setItem('exercise_weights', JSON.stringify(remote));
   }
   function getWorkoutHistory() {
     try { return JSON.parse(localStorage.getItem('workout_history') || '[]'); } catch (e) { return []; }
   }
   function saveWorkoutHistory(history) {
     localStorage.setItem('workout_history', JSON.stringify(history));
+    syncPush('workoutHistory', history);
+  }
+  async function syncWorkoutHistoryFromRemote() {
+    const remote = await syncPull('workoutHistory');
+    if (Array.isArray(remote)) localStorage.setItem('workout_history', JSON.stringify(remote));
   }
   function lastCompletedDate(templateId) {
     const history = getWorkoutHistory().filter(h => h.templateId === templateId);
@@ -2614,17 +2681,31 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
   }
 
   window.addEventListener('load', () => {
-    setTimeout(() => {
+    setTimeout(async () => {
       seedHistoricalCalories();
       syncFoodLogFromRemote();
-      renderRecipeList();
       render7DayAvgCalories();
       renderTodaySnapshot();
       renderBriefingPreview();
       if (!getStoredToken()) renderNextRaceCard(null);
+
+      // Pull every other synced data type before its first render, so a
+      // freshly opened device shows whatever was last saved elsewhere
+      // instead of an empty/stale local copy. Each pull silently no-ops if
+      // the sync backend isn't configured yet (see api/_github.js).
+      await Promise.all([
+        syncSavedRecipesFromRemote(),
+        syncRunningPbsFromRemote(),
+        syncGym1rmsFromRemote(),
+        syncExerciseWeightsFromRemote(),
+        syncWorkoutHistoryFromRemote(),
+        syncWeeklyTargetsFromRemote()
+      ]);
+      renderRecipeList();
       renderRunningPbs();
       renderGym1rms();
       renderWorkoutLibrary();
+      updateTrainingPlan();
     }, 400);
   });
 </script>
