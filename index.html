@@ -462,6 +462,68 @@
   .pb-edit .prev{font-size:12px;color:var(--muted);margin-bottom:8px;}
   .pb-edit .delta{font-size:12px;font-weight:700;margin-top:6px;}
 
+  .workout-card{
+    border:2px solid #eef2ec;
+    border-radius:16px;
+    padding:16px;
+    margin-bottom:12px;
+    cursor:pointer;
+  }
+  .workout-card:last-child{margin-bottom:0;}
+  .workout-card:hover{border-color:var(--lime);}
+  .workout-card .wname{font-size:17px;font-weight:800;}
+  .workout-card .wsub{font-size:13px;color:var(--muted);margin-top:2px;}
+  .workout-card .wmeta{font-size:12px;color:var(--muted);margin-top:8px;}
+
+  .session-timer{
+    font-size:32px;
+    font-weight:800;
+    letter-spacing:-0.02em;
+    text-align:center;
+    margin:4px 0 14px;
+  }
+  .workout-exercise{
+    padding:14px 0;
+    border-bottom:1px solid #eef2ec;
+  }
+  .workout-exercise:last-child{border-bottom:none;}
+  .workout-exercise-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin-bottom:8px;
+  }
+  .workout-exercise-header .name{font-weight:700;font-size:15px;}
+  .workout-exercise-header .sets-reps{font-size:13px;color:var(--muted);}
+  .workout-weight-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  .workout-weight-row input{
+    width:90px;
+    padding:8px 10px;
+    border-radius:8px;
+    border:1px solid #dde6da;
+    font-size:15px;
+  }
+  .workout-weight-row span{font-size:13px;color:var(--muted);}
+  .set-checks{display:flex;gap:8px;flex-wrap:wrap;}
+  .set-check{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    font-size:12px;
+    color:var(--muted);
+    background:#f1f5ef;
+    border-radius:8px;
+    padding:6px 10px;
+    cursor:pointer;
+  }
+  .set-check input{accent-color:var(--lime);width:16px;height:16px;}
+  .set-check.done{background:#e9f9ec;color:var(--green);font-weight:700;}
+
   .suggestion-banner{
     background:#eef9e3;
     border:1px solid var(--lime);
@@ -773,6 +835,19 @@
 
   <!-- GYM -->
   <section class="tab-panel" id="tab-gym">
+    <div class="split-layout">
+      <div class="split-col">
+        <div class="card">
+          <h2>Workout Library</h2>
+          <div id="workoutLibraryList"></div>
+        </div>
+      </div>
+      <div class="split-col">
+        <div class="card" id="activeSessionCard" style="display:none;">
+          <div id="activeSessionContent"></div>
+        </div>
+      </div>
+    </div>
     <div class="split-layout">
       <div class="split-col">
         <div class="card">
@@ -2336,6 +2411,202 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     });
   }
 
+  // ---- Workout Library ----
+  function slugify(name) {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+
+  const WORKOUT_TEMPLATES = {
+    push: {
+      name: 'Push',
+      subtitle: 'Chest, shoulders, triceps',
+      duration: '~90 mins',
+      exercises: [
+        { name: 'Bench Press', sets: 4, reps: '5', weight: 80 },
+        { name: 'Incline Dumbbell Press', sets: 3, reps: '8', weight: 30 },
+        { name: 'Overhead Press', sets: 3, reps: '8', weight: 35 },
+        { name: 'Lateral Raises', sets: 3, reps: '12', weight: 10 },
+        { name: 'Cable Chest Fly', sets: 3, reps: '12', weight: 15 },
+        { name: 'Tricep Pushdown', sets: 3, reps: '12', weight: 20 },
+        { name: 'Skull Crushers', sets: 3, reps: '10', weight: 25 },
+        { name: 'Plank', sets: 3, reps: '60s', weight: null },
+        { name: 'Dead Bug', sets: 3, reps: '10', weight: null }
+      ]
+    },
+    pull: {
+      name: 'Pull',
+      subtitle: 'Back, biceps, rear delts',
+      duration: '~90 mins',
+      exercises: [
+        { name: 'Deadlift', sets: 4, reps: '5', weight: 80 },
+        { name: 'Pull Ups', sets: 4, reps: '6', weight: null },
+        { name: 'Barbell Row', sets: 3, reps: '8', weight: 60 },
+        { name: 'Seated Cable Row', sets: 3, reps: '10', weight: 40 },
+        { name: 'Face Pulls', sets: 3, reps: '15', weight: 15 },
+        { name: 'Lat Pulldown', sets: 3, reps: '10', weight: 50 },
+        { name: 'Curl', sets: 3, reps: '10', weight: 22.5 },
+        { name: 'Reverse Fly', sets: 3, reps: '12', weight: 8 },
+        { name: 'Hanging Leg Raise', sets: 3, reps: '10', weight: null },
+        { name: 'Dead Hang', sets: 3, reps: '30s', weight: null }
+      ]
+    }
+  };
+
+  function getExerciseWeights() {
+    try { return JSON.parse(localStorage.getItem('exercise_weights') || '{}'); } catch (e) { return {}; }
+  }
+  function saveExerciseWeight(slug, weight) {
+    const weights = getExerciseWeights();
+    weights[slug] = weight;
+    localStorage.setItem('exercise_weights', JSON.stringify(weights));
+  }
+  function getWorkoutHistory() {
+    try { return JSON.parse(localStorage.getItem('workout_history') || '[]'); } catch (e) { return []; }
+  }
+  function saveWorkoutHistory(history) {
+    localStorage.setItem('workout_history', JSON.stringify(history));
+  }
+  function lastCompletedDate(templateId) {
+    const history = getWorkoutHistory().filter(h => h.templateId === templateId);
+    if (history.length === 0) return null;
+    return history[history.length - 1].date;
+  }
+
+  let activeSession = null; // { templateId, startTime, exercises: [{name, slug, sets, reps, weight, completedSets:Set}] }
+  let sessionTimerInterval = null;
+
+  function renderWorkoutLibrary() {
+    const list = document.getElementById('workoutLibraryList');
+    if (!list) return;
+    list.innerHTML = '';
+    Object.keys(WORKOUT_TEMPLATES).forEach(id => {
+      const t = WORKOUT_TEMPLATES[id];
+      const last = lastCompletedDate(id);
+      const card = document.createElement('div');
+      card.className = 'workout-card';
+      card.innerHTML = `
+        <div class="wname">${t.name}</div>
+        <div class="wsub">${t.subtitle} · ${t.duration}</div>
+        <div class="wmeta">${last ? 'Last completed: ' + formatPbDate(last) : 'Not done yet'}</div>`;
+      card.addEventListener('click', () => startWorkoutSession(id));
+      list.appendChild(card);
+    });
+  }
+
+  function startWorkoutSession(templateId) {
+    const t = WORKOUT_TEMPLATES[templateId];
+    const savedWeights = getExerciseWeights();
+    activeSession = {
+      templateId,
+      startTime: Date.now(),
+      exercises: t.exercises.map(ex => {
+        const slug = slugify(ex.name);
+        const weight = ex.weight === null ? null : (savedWeights[slug] !== undefined ? savedWeights[slug] : ex.weight);
+        return { name: ex.name, slug, sets: ex.sets, reps: ex.reps, weight, completedSets: new Set() };
+      })
+    };
+    document.getElementById('activeSessionCard').style.display = '';
+    renderActiveSession();
+    if (sessionTimerInterval) clearInterval(sessionTimerInterval);
+    sessionTimerInterval = setInterval(updateSessionTimer, 1000);
+  }
+
+  function updateSessionTimer() {
+    const el = document.getElementById('sessionTimer');
+    if (!el || !activeSession) return;
+    const elapsed = Math.floor((Date.now() - activeSession.startTime) / 1000);
+    const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+    const s = (elapsed % 60).toString().padStart(2, '0');
+    el.textContent = `${m}:${s}`;
+  }
+
+  function renderActiveSession() {
+    const content = document.getElementById('activeSessionContent');
+    if (!content || !activeSession) return;
+    const t = WORKOUT_TEMPLATES[activeSession.templateId];
+    content.innerHTML = `
+      <h2>${t.name} Session</h2>
+      <div class="session-timer" id="sessionTimer">00:00</div>
+      <div id="sessionExerciseList"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn" id="finishSessionBtn">Finish Session</button>
+        <button class="btn secondary" id="cancelSessionBtn">Cancel</button>
+      </div>`;
+    const exList = document.getElementById('sessionExerciseList');
+    activeSession.exercises.forEach((ex, idx) => {
+      const row = document.createElement('div');
+      row.className = 'workout-exercise';
+      const setChecks = Array.from({ length: ex.sets }).map((_, i) => `
+        <label class="set-check${ex.completedSets.has(i) ? ' done' : ''}" data-exercise-idx="${idx}" data-set-idx="${i}">
+          <input type="checkbox" ${ex.completedSets.has(i) ? 'checked' : ''}> Set ${i + 1}
+        </label>`).join('');
+      row.innerHTML = `
+        <div class="workout-exercise-header">
+          <div class="name">${ex.name}</div>
+          <div class="sets-reps">${ex.sets} × ${ex.reps}</div>
+        </div>
+        <div class="workout-weight-row">
+          ${ex.weight === null
+            ? '<span class="placeholder-text">Bodyweight</span>'
+            : `<input type="number" step="0.5" value="${ex.weight}" data-exercise-idx="${idx}" class="exercise-weight-input"><span>kg</span>`}
+        </div>
+        <div class="set-checks">${setChecks}</div>`;
+      exList.appendChild(row);
+    });
+
+    exList.querySelectorAll('.exercise-weight-input').forEach(input => {
+      input.addEventListener('change', () => {
+        const idx = Number(input.dataset.exerciseIdx);
+        const weight = Number(input.value);
+        activeSession.exercises[idx].weight = weight;
+        saveExerciseWeight(activeSession.exercises[idx].slug, weight);
+      });
+    });
+
+    exList.querySelectorAll('.set-check').forEach(label => {
+      label.addEventListener('click', (e) => {
+        e.preventDefault();
+        const idx = Number(label.dataset.exerciseIdx);
+        const setIdx = Number(label.dataset.setIdx);
+        const completed = activeSession.exercises[idx].completedSets;
+        if (completed.has(setIdx)) completed.delete(setIdx); else completed.add(setIdx);
+        renderActiveSession();
+      });
+    });
+
+    document.getElementById('finishSessionBtn').addEventListener('click', finishWorkoutSession);
+    document.getElementById('cancelSessionBtn').addEventListener('click', cancelWorkoutSession);
+    updateSessionTimer();
+  }
+
+  function finishWorkoutSession() {
+    if (!activeSession) return;
+    const durationSeconds = Math.floor((Date.now() - activeSession.startTime) / 1000);
+    const totalSets = activeSession.exercises.reduce((sum, ex) => sum + ex.sets, 0);
+    const completedSets = activeSession.exercises.reduce((sum, ex) => sum + ex.completedSets.size, 0);
+    const history = getWorkoutHistory();
+    history.push({
+      templateId: activeSession.templateId,
+      date: todayKey(),
+      durationSeconds,
+      completedSets,
+      totalSets
+    });
+    saveWorkoutHistory(history);
+    clearInterval(sessionTimerInterval);
+    sessionTimerInterval = null;
+    activeSession = null;
+    document.getElementById('activeSessionCard').style.display = 'none';
+    renderWorkoutLibrary();
+  }
+
+  function cancelWorkoutSession() {
+    clearInterval(sessionTimerInterval);
+    sessionTimerInterval = null;
+    activeSession = null;
+    document.getElementById('activeSessionCard').style.display = 'none';
+  }
+
   window.addEventListener('load', () => {
     setTimeout(() => {
       seedHistoricalCalories();
@@ -2347,6 +2618,7 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
       if (!getStoredToken()) renderNextRaceCard(null);
       renderRunningPbs();
       renderGym1rms();
+      renderWorkoutLibrary();
     }, 400);
   });
 </script>
