@@ -233,6 +233,71 @@
   .tag-golf{background:#f0fbf6;color:var(--teal);}
   .tag-padel{background:#fff0f6;color:var(--coral);}
 
+  .ring-row{
+    display:flex;
+    justify-content:space-around;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .mini-ring-wrap{text-align:center;flex:1;min-width:90px;}
+  .mini-ring{
+    width:88px;
+    height:88px;
+    margin:0 auto 8px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:conic-gradient(var(--ring-color,var(--lime)) calc(var(--pct,0)*1%), #eef2ec 0);
+    position:relative;
+  }
+  .mini-ring::before{
+    content:"";
+    position:absolute;
+    inset:8px;
+    border-radius:50%;
+    background:var(--card);
+  }
+  .mini-ring .val{
+    position:relative;
+    font-size:17px;
+    font-weight:800;
+    letter-spacing:-0.02em;
+  }
+  .mini-ring-label{
+    font-size:11px;
+    font-weight:700;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.03em;
+  }
+  .mini-ring-sub{
+    font-size:11px;
+    color:var(--muted);
+    margin-top:2px;
+  }
+
+  .food-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:12px 0;
+    border-bottom:1px solid #eef2ec;
+  }
+  .food-row:last-child{border-bottom:none;}
+  .food-row .name{font-weight:700;font-size:15px;flex:1;}
+  .food-row .macro{font-size:13px;color:var(--muted);white-space:nowrap;}
+  .food-row .delete-btn{
+    background:none;
+    border:none;
+    color:var(--coral);
+    font-size:18px;
+    font-weight:800;
+    cursor:pointer;
+    padding:4px 8px;
+    line-height:1;
+  }
+
   .suggestion-banner{
     background:#eef9e3;
     border:1px solid var(--lime);
@@ -358,6 +423,10 @@
         <div class="label">Sleep</div>
         <div class="value" id="sleepHoursValue">-- <small>h</small></div>
       </div>
+      <div class="metric-card accent-coral">
+        <div class="label">Avg calories · 7d</div>
+        <div class="value" id="avgCaloriesValue">-- <small>kcal</small></div>
+      </div>
     </div>
 
     <div class="card">
@@ -403,9 +472,25 @@
 
   <!-- NUTRITION -->
   <section class="tab-panel" id="tab-nutrition">
-    <div class="card" style="text-align:center;padding:40px 18px;">
-      <h2 style="margin-bottom:10px;">Nutrition</h2>
-      <p class="placeholder-text">Coming soon.</p>
+    <div class="card">
+      <div class="ring-row" id="nutritionRings"></div>
+    </div>
+    <div class="card">
+      <h2>Food Log</h2>
+      <div id="foodLogList"></div>
+      <button class="btn secondary" id="addFoodBtn" style="margin-top:10px;">+ Add Food</button>
+      <div id="addFoodForm" style="display:none;margin-top:14px;">
+        <input type="text" id="foodNameInput" placeholder="Food name" style="width:100%;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;margin-bottom:8px;">
+        <button class="btn secondary" id="estimateFoodBtn" style="margin-bottom:8px;">Estimate with AI</button>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <input type="number" id="foodCaloriesInput" placeholder="Calories" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
+          <input type="number" id="foodProteinInput" placeholder="Protein (g)" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn" id="saveFoodBtn">Save</button>
+          <button class="btn secondary" id="cancelFoodBtn">Cancel</button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1117,6 +1202,9 @@
         return false;
       });
       if (justConnected || getWhoopToken()) loadWhoopData(justConnected);
+      if (justConnected) {
+        loadCalorieTarget(true).then(() => renderNutritionTab());
+      }
     }, 300);
   });
 
@@ -1263,6 +1351,243 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
   });
 
   renderChat();
+
+  // ---- Nutrition ----
+  const PROTEIN_TARGET = 140;
+  const KJ_PER_KCAL = 4.184;
+
+  function foodLogKey(dateKey) {
+    return 'food_log_' + dateKey;
+  }
+
+  function getFoodLog(dateKey) {
+    try { return JSON.parse(localStorage.getItem(foodLogKey(dateKey)) || '[]'); } catch (e) { return []; }
+  }
+
+  function getDailyTotalsMap() {
+    try { return JSON.parse(localStorage.getItem('daily_totals') || '{}'); } catch (e) { return {}; }
+  }
+
+  function saveFoodLog(log) {
+    const dateKey = todayKey();
+    localStorage.setItem(foodLogKey(dateKey), JSON.stringify(log));
+    const totals = log.reduce((acc, f) => ({
+      calories: acc.calories + Number(f.calories || 0),
+      protein: acc.protein + Number(f.protein || 0)
+    }), { calories: 0, protein: 0 });
+    const allTotals = getDailyTotalsMap();
+    allTotals[dateKey] = totals;
+    localStorage.setItem('daily_totals', JSON.stringify(allTotals));
+    return totals;
+  }
+
+  function getCalorieTargetCache() {
+    try { return JSON.parse(localStorage.getItem('calorie_target_cache') || 'null'); } catch (e) { return null; }
+  }
+
+  // Yesterday's TDEE (from WHOOP's completed cycle energy expenditure)
+  // minus 150, cached per day just like the other WHOOP-derived values.
+  async function loadCalorieTarget(force) {
+    const cache = getCalorieTargetCache();
+    if (!force && cache && cache.date === todayKey()) return cache.target;
+    if (!getWhoopToken()) return cache ? cache.target : null;
+    try {
+      const cycleData = await whoopFetch('/v2/cycle?limit=4');
+      const records = (cycleData.records || [])
+        .filter(r => r.end && r.score && r.score.kilojoule)
+        .sort((a, b) => new Date(b.start) - new Date(a.start));
+      const lastCompleted = records[0];
+      if (!lastCompleted) return cache ? cache.target : null;
+      const tdee = lastCompleted.score.kilojoule / KJ_PER_KCAL;
+      const target = Math.round(tdee - 150);
+      localStorage.setItem('calorie_target_cache', JSON.stringify({ date: todayKey(), target }));
+      return target;
+    } catch (err) {
+      console.error(err);
+      return cache ? cache.target : null;
+    }
+  }
+
+  function ringColorFor(pct) {
+    if (pct >= 100) return '#16a34a';
+    if (pct >= 60) return '#eab308';
+    return '#ef4444';
+  }
+
+  function renderNutritionRings(target, consumedCalories, consumedProtein) {
+    const container = document.getElementById('nutritionRings');
+    if (!container) return;
+
+    const calPct = target ? Math.min(100, Math.round((consumedCalories / target) * 100)) : 0;
+    const proteinPct = Math.min(100, Math.round((consumedProtein / PROTEIN_TARGET) * 100));
+    const remaining = target !== null ? target - consumedCalories : null;
+
+    let remainingColor = '#16a34a';
+    if (remaining !== null) {
+      if (remaining < 0) remainingColor = '#ef4444';
+      else if (remaining < 300) remainingColor = '#eab308';
+    }
+    const remainingPct = target ? Math.max(0, Math.min(100, Math.round((Math.max(0, remaining) / target) * 100))) : 0;
+
+    container.innerHTML = `
+      <div class="mini-ring-wrap">
+        <div class="mini-ring" style="--pct:${calPct};--ring-color:#0d9488;">
+          <span class="val">${consumedCalories}</span>
+        </div>
+        <div class="mini-ring-label">Calories</div>
+        <div class="mini-ring-sub">of ${target !== null ? target : '--'}</div>
+      </div>
+      <div class="mini-ring-wrap">
+        <div class="mini-ring" style="--pct:${proteinPct};--ring-color:#84cc16;">
+          <span class="val">${consumedProtein}g</span>
+        </div>
+        <div class="mini-ring-label">Protein</div>
+        <div class="mini-ring-sub">of ${PROTEIN_TARGET}g</div>
+      </div>
+      <div class="mini-ring-wrap">
+        <div class="mini-ring" style="--pct:${remainingPct};--ring-color:${remainingColor};">
+          <span class="val">${remaining !== null ? remaining : '--'}</span>
+        </div>
+        <div class="mini-ring-label">Remaining</div>
+        <div class="mini-ring-sub">${target !== null ? '' : 'connect WHOOP'}</div>
+      </div>`;
+  }
+
+  function renderFoodLog(log) {
+    const list = document.getElementById('foodLogList');
+    list.innerHTML = '';
+    if (log.length === 0) {
+      list.innerHTML = '<p class="placeholder-text">No food logged today.</p>';
+      return;
+    }
+    log.forEach(f => {
+      const row = document.createElement('div');
+      row.className = 'food-row';
+      row.innerHTML = `
+        <div class="name">${f.name}</div>
+        <div class="macro">${f.calories} kcal · ${f.protein}g protein</div>
+        <button class="delete-btn" data-id="${f.id}">&times;</button>`;
+      row.querySelector('.delete-btn').addEventListener('click', () => deleteFoodEntry(f.id));
+      list.appendChild(row);
+    });
+  }
+
+  async function renderNutritionTab() {
+    const log = getFoodLog(todayKey());
+    const totals = saveFoodLog(log); // recomputes daily_totals without changing the log itself
+    const target = await loadCalorieTarget(false);
+    renderNutritionRings(target, totals.calories, totals.protein);
+    renderFoodLog(log);
+  }
+
+  function deleteFoodEntry(id) {
+    const log = getFoodLog(todayKey()).filter(f => f.id !== id);
+    saveFoodLog(log);
+    renderNutritionTab();
+  }
+
+  function addFoodEntry(name, calories, protein) {
+    const log = getFoodLog(todayKey());
+    log.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), name, calories: Math.round(calories), protein: Math.round(protein) });
+    saveFoodLog(log);
+    renderNutritionTab();
+  }
+
+  async function estimateFoodMacros(name) {
+    const key = getAnthropicKey();
+    if (!key) {
+      alert('Save your Anthropic API key on the Briefing tab first.');
+      return null;
+    }
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 100,
+        messages: [{
+          role: 'user',
+          content: `Estimate calories and protein (grams) for a typical serving of: "${name}". Respond with ONLY a JSON object like {"calories": 250, "protein": 12} — no other text.`
+        }]
+      })
+    });
+    if (!res.ok) throw new Error('Anthropic API error: ' + res.status);
+    const data = await res.json();
+    const text = (data.content || []).map(c => c.text || '').join('');
+    const match = text.match(/\{[^}]*\}/);
+    if (!match) throw new Error('Could not parse estimate');
+    const parsed = JSON.parse(match[0]);
+    return { calories: Number(parsed.calories) || 0, protein: Number(parsed.protein) || 0 };
+  }
+
+  document.getElementById('addFoodBtn').addEventListener('click', () => {
+    document.getElementById('addFoodForm').style.display = '';
+    document.getElementById('addFoodBtn').style.display = 'none';
+  });
+
+  document.getElementById('cancelFoodBtn').addEventListener('click', () => {
+    document.getElementById('addFoodForm').style.display = 'none';
+    document.getElementById('addFoodBtn').style.display = '';
+    document.getElementById('foodNameInput').value = '';
+    document.getElementById('foodCaloriesInput').value = '';
+    document.getElementById('foodProteinInput').value = '';
+  });
+
+  document.getElementById('estimateFoodBtn').addEventListener('click', async () => {
+    const name = document.getElementById('foodNameInput').value.trim();
+    if (!name) { alert('Type a food name first.'); return; }
+    const btn = document.getElementById('estimateFoodBtn');
+    btn.textContent = 'Estimating...';
+    try {
+      const estimate = await estimateFoodMacros(name);
+      if (estimate) {
+        document.getElementById('foodCaloriesInput').value = estimate.calories;
+        document.getElementById('foodProteinInput').value = estimate.protein;
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Could not get an estimate — enter the numbers manually instead.');
+    }
+    btn.textContent = 'Estimate with AI';
+  });
+
+  document.getElementById('saveFoodBtn').addEventListener('click', () => {
+    const name = document.getElementById('foodNameInput').value.trim();
+    const calories = Number(document.getElementById('foodCaloriesInput').value);
+    const protein = Number(document.getElementById('foodProteinInput').value);
+    if (!name || !calories) { alert('Enter a food name and calories.'); return; }
+    addFoodEntry(name, calories, protein || 0);
+    document.getElementById('cancelFoodBtn').click();
+  });
+
+  // Static 7-day average — last 7 calendar days excluding today, computed
+  // once on load rather than live during the day.
+  function render7DayAvgCalories() {
+    const totals = getDailyTotalsMap();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let sum = 0, count = 0;
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date(today.getTime() - i * 86400000);
+      const key = d.toISOString().slice(0, 10);
+      if (totals[key]) { sum += totals[key].calories; count++; }
+    }
+    const el = document.getElementById('avgCaloriesValue');
+    if (!el) return;
+    el.innerHTML = count ? Math.round(sum / count) + ' <small>kcal</small>' : '-- <small>kcal</small>';
+  }
+
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      renderNutritionTab();
+      render7DayAvgCalories();
+    }, 400);
+  });
 </script>
 
 </body>
