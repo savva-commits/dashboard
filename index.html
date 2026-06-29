@@ -755,6 +755,12 @@
       panels.forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      // Pull the latest food log whenever the Nutrition tab is opened, so
+      // changes made on another device while this tab was already open
+      // show up without needing a full page reload.
+      if (btn.dataset.tab === 'nutrition' && typeof syncFoodLogFromRemote === 'function') {
+        syncFoodLogFromRemote();
+      }
     });
   });
 
@@ -1705,6 +1711,43 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     return totals;
   }
 
+  // ---- Cross-device food log sync (Vercel KV) ----
+  const FOOD_LOG_PROXY_URL = 'https://dashboard20-iota.vercel.app/api/food-log';
+
+  async function pushFoodLogRemote(log) {
+    try {
+      await fetch(FOOD_LOG_PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: todayKey(), log })
+      });
+    } catch (err) {
+      console.error('food log remote push failed', err);
+    }
+  }
+
+  async function pullFoodLogRemote() {
+    try {
+      const res = await fetch(`${FOOD_LOG_PROXY_URL}?date=${todayKey()}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data.log) ? data.log : null;
+    } catch (err) {
+      console.error('food log remote pull failed', err);
+      return null;
+    }
+  }
+
+  // Pulls today's log from the shared store so changes made on another
+  // device show up here too. Server is treated as source of truth on pull;
+  // local writes always push immediately after so the next device to pull
+  // sees them.
+  async function syncFoodLogFromRemote() {
+    const remoteLog = await pullFoodLogRemote();
+    if (remoteLog) saveFoodLog(remoteLog);
+    await renderNutritionTab();
+  }
+
   function getCalorieTargetCache() {
     try { return JSON.parse(localStorage.getItem('calorie_target_cache_v2') || 'null'); } catch (e) { return null; }
   }
@@ -1810,6 +1853,7 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
   function deleteFoodEntry(id) {
     const log = getFoodLog(todayKey()).filter(f => f.id !== id);
     saveFoodLog(log);
+    pushFoodLogRemote(log);
     renderNutritionTab();
   }
 
@@ -1817,6 +1861,7 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     const log = getFoodLog(todayKey());
     log.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), name, calories: Math.round(calories), protein: Math.round(protein) });
     saveFoodLog(log);
+    pushFoodLogRemote(log);
     renderNutritionTab();
   }
 
@@ -1932,7 +1977,7 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
   window.addEventListener('load', () => {
     setTimeout(() => {
       seedHistoricalCalories();
-      renderNutritionTab();
+      syncFoodLogFromRemote();
       render7DayAvgCalories();
       renderTodaySnapshot();
       renderBriefingPreview();
