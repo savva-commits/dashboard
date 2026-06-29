@@ -1,5 +1,5 @@
-// Vercel serverless function: syncs the food log across devices via
-// Vercel KV (Upstash-compatible REST API), keyed by calendar date.
+// Vercel serverless function: syncs the food log across devices via an
+// Upstash Redis store (REST API), keyed by calendar date.
 //
 // Requires a Vercel KV store created in the project's Storage tab and
 // linked to this project — that automatically sets KV_REST_API_URL and
