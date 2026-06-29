@@ -25,7 +25,7 @@ module.exports = async (req, res) => {
       const log = (content.foodLogs && content.foodLogs[date]) || [];
       res.status(200).json({ log });
     } catch (err) {
-      res.status(502).json({ error: 'sync_read_failed' });
+      res.status(502).json({ error: 'sync_read_failed', detail: String(err.message || err) });
     }
     return;
   }
@@ -41,7 +41,7 @@ module.exports = async (req, res) => {
       });
       res.status(200).json({ ok: true });
     } catch (err) {
-      res.status(502).json({ error: 'sync_write_failed' });
+      res.status(502).json({ error: 'sync_write_failed', detail: String(err.message || err) });
     }
     return;
   }

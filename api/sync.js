@@ -27,7 +27,7 @@ module.exports = async (req, res) => {
       const { content } = await readSyncData();
       res.status(200).json({ value: content[key] !== undefined ? content[key] : null });
     } catch (err) {
-      res.status(502).json({ error: 'sync_read_failed' });
+      res.status(502).json({ error: 'sync_read_failed', detail: String(err.message || err) });
     }
     return;
   }
@@ -39,7 +39,7 @@ module.exports = async (req, res) => {
       await updateSyncData(content => { content[key] = value; return content; });
       res.status(200).json({ ok: true });
     } catch (err) {
-      res.status(502).json({ error: 'sync_write_failed' });
+      res.status(502).json({ error: 'sync_write_failed', detail: String(err.message || err) });
     }
     return;
   }
