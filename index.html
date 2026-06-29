@@ -408,6 +408,60 @@
     line-height:1;
   }
 
+  .recipe-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:12px 0;
+    border-bottom:1px solid #eef2ec;
+  }
+  .recipe-row:last-child{border-bottom:none;}
+  .recipe-row .recipe-main{
+    flex:1;
+    cursor:pointer;
+  }
+  .recipe-row .name{font-weight:700;font-size:15px;}
+  .recipe-row .macro{font-size:13px;color:var(--muted);}
+  .recipe-row .icon-btn{
+    background:none;
+    border:none;
+    font-size:15px;
+    cursor:pointer;
+    padding:4px 6px;
+    color:var(--muted);
+  }
+  .recipe-row .icon-btn.delete{color:var(--coral);font-size:18px;font-weight:800;}
+
+  .pb-row{padding:12px 0;border-bottom:1px solid #eef2ec;}
+  .pb-row:last-child{border-bottom:none;}
+  .pb-row-main{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    cursor:pointer;
+    gap:10px;
+  }
+  .pb-row .name{font-weight:700;font-size:15px;}
+  .pb-row .value{font-size:13px;color:var(--muted);text-align:right;}
+  .pb-row .value .big{
+    font-size:18px;
+    font-weight:800;
+    color:var(--ink);
+    display:block;
+  }
+  .pb-edit{display:none;margin-top:10px;}
+  .pb-edit.open{display:block;}
+  .pb-edit input{
+    width:100%;
+    padding:10px;
+    border-radius:8px;
+    border:1px solid #dde6da;
+    font-size:15px;
+    margin-bottom:8px;
+  }
+  .pb-edit .prev{font-size:12px;color:var(--muted);margin-bottom:8px;}
+  .pb-edit .delta{font-size:12px;font-weight:700;margin-top:6px;}
+
   .suggestion-banner{
     background:#eef9e3;
     border:1px solid var(--lime);
@@ -619,7 +673,6 @@
   <!-- TRAINING -->
   <section class="tab-panel" id="tab-training">
     <div id="raceWeekBanner"></div>
-    <div id="suggestionBanner"></div>
     <div class="split-layout">
       <div class="split-col">
         <div class="card" id="trainingPlanCard">
@@ -628,6 +681,7 @@
         </div>
       </div>
       <div class="split-col">
+        <div id="suggestionBanner"></div>
         <div class="card" id="weekProgressCard">
           <h2>Week Progress</h2>
           <div id="weekProgressContent"></div>
@@ -642,18 +696,36 @@
       <div class="split-col">
         <div class="card">
           <div class="ring-row" id="nutritionRings"></div>
-          <button class="btn secondary" id="addFoodBtn" style="margin-top:14px;">+ Add Food</button>
-          <div id="addFoodForm" style="display:none;margin-top:14px;">
-            <input type="text" id="foodNameInput" placeholder="Food name" style="width:100%;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;margin-bottom:8px;">
-            <button class="btn secondary" id="estimateFoodBtn" style="margin-bottom:8px;">Estimate with AI</button>
+        </div>
+        <div class="card">
+          <h2>Recipe Library</h2>
+          <div id="recipeList"></div>
+          <button class="btn secondary" id="addRecipeBtn" style="margin-top:10px;">+ Save Recipe</button>
+          <div id="addRecipeForm" style="display:none;margin-top:14px;">
+            <textarea id="recipeDescInput" placeholder="Describe the meal, e.g. &quot;grilled chicken breast with rice and broccoli&quot;" style="width:100%;min-height:70px;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;margin-bottom:8px;"></textarea>
+            <button class="btn secondary" id="estimateRecipeBtn" style="margin-bottom:8px;">Estimate with AI</button>
+            <input type="text" id="recipeNameInput" placeholder="Recipe name" style="width:100%;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;margin-bottom:8px;">
             <div style="display:flex;gap:8px;margin-bottom:8px;">
-              <input type="number" id="foodCaloriesInput" placeholder="Calories" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
-              <input type="number" id="foodProteinInput" placeholder="Protein (g)" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
+              <input type="number" id="recipeCaloriesInput" placeholder="Calories" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
+              <input type="number" id="recipeProteinInput" placeholder="Protein (g)" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
             </div>
             <div style="display:flex;gap:8px;">
-              <button class="btn" id="saveFoodBtn">Save</button>
-              <button class="btn secondary" id="cancelFoodBtn">Cancel</button>
+              <button class="btn" id="saveRecipeBtn">Save Recipe</button>
+              <button class="btn secondary" id="cancelRecipeBtn">Cancel</button>
             </div>
+          </div>
+        </div>
+        <button class="btn secondary" id="addFoodBtn">+ Add Food</button>
+        <div class="card" id="addFoodForm" style="display:none;">
+          <input type="text" id="foodNameInput" placeholder="Food name" style="width:100%;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;margin-bottom:8px;">
+          <button class="btn secondary" id="estimateFoodBtn" style="margin-bottom:8px;">Estimate with AI</button>
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <input type="number" id="foodCaloriesInput" placeholder="Calories" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
+            <input type="number" id="foodProteinInput" placeholder="Protein (g)" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn" id="saveFoodBtn">Save</button>
+            <button class="btn secondary" id="cancelFoodBtn">Cancel</button>
           </div>
         </div>
       </div>
@@ -699,6 +771,25 @@
     </div>
   </section>
 
+  <!-- GYM -->
+  <section class="tab-panel" id="tab-gym">
+    <div class="split-layout">
+      <div class="split-col">
+        <div class="card">
+          <h2>Running PBs</h2>
+          <div id="runningPbList"></div>
+        </div>
+      </div>
+      <div class="split-col">
+        <div class="card">
+          <h2>Gym 1RMs</h2>
+          <div id="gym1rmList"></div>
+        </div>
+      </div>
+    </div>
+    <p class="placeholder-text" style="text-align:center;margin-top:10px;">More gym tracking coming soon.</p>
+  </section>
+
 </main>
 
 <nav class="tabbar">
@@ -707,6 +798,7 @@
   <button data-tab="training"><span class="icon">▲</span>Training</button>
   <button data-tab="nutrition"><span class="icon">◆</span>Nutrition</button>
   <button data-tab="briefing"><span class="icon">■</span>Briefing</button>
+  <button data-tab="gym"><span class="icon">🏋</span>Gym</button>
 </nav>
 
 <script>
@@ -1865,7 +1957,7 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     renderNutritionTab();
   }
 
-  async function estimateFoodMacros(name) {
+  async function estimateMacrosFromText(promptText) {
     const key = getAnthropicKey();
     if (!key) {
       alert('Save your Anthropic API key on the Briefing tab first.');
@@ -1882,10 +1974,7 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 100,
-        messages: [{
-          role: 'user',
-          content: `Estimate calories and protein (grams) for a typical serving of: "${name}". Respond with ONLY a JSON object like {"calories": 250, "protein": 12} — no other text.`
-        }]
+        messages: [{ role: 'user', content: promptText }]
       })
     });
     if (!res.ok) throw new Error('Anthropic API error: ' + res.status);
@@ -1895,6 +1984,14 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     if (!match) throw new Error('Could not parse estimate');
     const parsed = JSON.parse(match[0]);
     return { calories: Number(parsed.calories) || 0, protein: Number(parsed.protein) || 0 };
+  }
+
+  function estimateFoodMacros(name) {
+    return estimateMacrosFromText(`Estimate calories and protein (grams) for a typical serving of: "${name}". Respond with ONLY a JSON object like {"calories": 250, "protein": 12} — no other text.`);
+  }
+
+  function estimateRecipeMacros(description) {
+    return estimateMacrosFromText(`Estimate total calories and protein (grams) for this meal: "${description}". Respond with ONLY a JSON object like {"calories": 250, "protein": 12} — no other text.`);
   }
 
   document.getElementById('addFoodBtn').addEventListener('click', () => {
@@ -1937,6 +2034,109 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     document.getElementById('cancelFoodBtn').click();
   });
 
+  // ---- Recipe Library ----
+  function getSavedRecipes() {
+    try { return JSON.parse(localStorage.getItem('saved_recipes') || '[]'); } catch (e) { return []; }
+  }
+
+  function saveSavedRecipes(recipes) {
+    localStorage.setItem('saved_recipes', JSON.stringify(recipes));
+  }
+
+  let editingRecipeId = null;
+
+  function renderRecipeList() {
+    const list = document.getElementById('recipeList');
+    const recipes = getSavedRecipes();
+    list.innerHTML = '';
+    if (recipes.length === 0) {
+      list.innerHTML = '<p class="placeholder-text">No saved recipes yet.</p>';
+      return;
+    }
+    recipes.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'recipe-row';
+      row.innerHTML = `
+        <div class="recipe-main">
+          <div class="name">${r.name}</div>
+          <div class="macro">${r.calories} kcal · ${r.protein}g protein</div>
+        </div>
+        <button class="icon-btn edit" title="Edit">✎</button>
+        <button class="icon-btn delete" title="Delete">&times;</button>`;
+      row.querySelector('.recipe-main').addEventListener('click', () => {
+        addFoodEntry(r.name, r.calories, r.protein);
+      });
+      row.querySelector('.edit').addEventListener('click', (e) => {
+        e.stopPropagation();
+        editingRecipeId = r.id;
+        document.getElementById('recipeDescInput').value = '';
+        document.getElementById('recipeNameInput').value = r.name;
+        document.getElementById('recipeCaloriesInput').value = r.calories;
+        document.getElementById('recipeProteinInput').value = r.protein;
+        document.getElementById('addRecipeForm').style.display = '';
+        document.getElementById('addRecipeBtn').style.display = 'none';
+      });
+      row.querySelector('.delete').addEventListener('click', (e) => {
+        e.stopPropagation();
+        saveSavedRecipes(getSavedRecipes().filter(x => x.id !== r.id));
+        renderRecipeList();
+      });
+      list.appendChild(row);
+    });
+  }
+
+  function resetRecipeForm() {
+    editingRecipeId = null;
+    document.getElementById('addRecipeForm').style.display = 'none';
+    document.getElementById('addRecipeBtn').style.display = '';
+    document.getElementById('recipeDescInput').value = '';
+    document.getElementById('recipeNameInput').value = '';
+    document.getElementById('recipeCaloriesInput').value = '';
+    document.getElementById('recipeProteinInput').value = '';
+  }
+
+  document.getElementById('addRecipeBtn').addEventListener('click', () => {
+    document.getElementById('addRecipeForm').style.display = '';
+    document.getElementById('addRecipeBtn').style.display = 'none';
+  });
+
+  document.getElementById('cancelRecipeBtn').addEventListener('click', resetRecipeForm);
+
+  document.getElementById('estimateRecipeBtn').addEventListener('click', async () => {
+    const desc = document.getElementById('recipeDescInput').value.trim();
+    if (!desc) { alert('Describe the meal first.'); return; }
+    const btn = document.getElementById('estimateRecipeBtn');
+    btn.textContent = 'Estimating...';
+    try {
+      const estimate = await estimateRecipeMacros(desc);
+      if (estimate) {
+        document.getElementById('recipeCaloriesInput').value = estimate.calories;
+        document.getElementById('recipeProteinInput').value = estimate.protein;
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Could not get an estimate — enter the numbers manually instead.');
+    }
+    btn.textContent = 'Estimate with AI';
+  });
+
+  document.getElementById('saveRecipeBtn').addEventListener('click', () => {
+    const name = document.getElementById('recipeNameInput').value.trim();
+    const calories = Number(document.getElementById('recipeCaloriesInput').value);
+    const protein = Number(document.getElementById('recipeProteinInput').value);
+    if (!name || !calories) { alert('Name the recipe and enter calories.'); return; }
+    const recipes = getSavedRecipes();
+    if (editingRecipeId) {
+      const r = recipes.find(x => x.id === editingRecipeId);
+      if (r) { r.name = name; r.calories = Math.round(calories); r.protein = Math.round(protein || 0); }
+    } else {
+      recipes.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), name, calories: Math.round(calories), protein: Math.round(protein || 0) });
+    }
+    saveSavedRecipes(recipes);
+    resetRecipeForm();
+    renderRecipeList();
+  });
+
   // One-time seed so the 7-day average isn't empty while real data builds
   // up. Only fills days that have no real entry yet — once a day is
   // actually logged, this never overwrites it, and as days roll out of the
@@ -1974,14 +2174,179 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     el.innerHTML = count ? Math.round(sum / count) + ' <small>kcal</small>' : '<small>No data yet</small>';
   }
 
+  // ---- Gym tab: running PBs + 1RMs ----
+  const RUNNING_PB_DEFS = [
+    { id: 'fivek', label: '5k' },
+    { id: 'tenk', label: '10k' }
+  ];
+  const GYM_1RM_DEFS = [
+    { id: 'bench', label: 'Bench Press' },
+    { id: 'squat', label: 'Squat' },
+    { id: 'deadlift', label: 'Deadlift' },
+    { id: 'legpress', label: 'Leg Press' },
+    { id: 'curl', label: 'Curl' }
+  ];
+
+  function getRunningPbs() {
+    try { return JSON.parse(localStorage.getItem('running_pbs') || '{}'); } catch (e) { return {}; }
+  }
+  function saveRunningPbs(data) {
+    localStorage.setItem('running_pbs', JSON.stringify(data));
+  }
+  function getGym1rms() {
+    try { return JSON.parse(localStorage.getItem('gym_1rms') || '{}'); } catch (e) { return {}; }
+  }
+  function saveGym1rms(data) {
+    localStorage.setItem('gym_1rms', JSON.stringify(data));
+  }
+
+  function timeToSeconds(mmss) {
+    const m = mmss.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    return Number(m[1]) * 60 + Number(m[2]);
+  }
+
+  function formatPbDate(dateStr) {
+    return new Date(dateStr).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function renderRunningPbs() {
+    const list = document.getElementById('runningPbList');
+    if (!list) return;
+    const pbs = getRunningPbs();
+    list.innerHTML = '';
+    RUNNING_PB_DEFS.forEach(def => {
+      const entry = pbs[def.id];
+      const row = document.createElement('div');
+      row.className = 'pb-row';
+      row.innerHTML = `
+        <div class="pb-row-main">
+          <div class="name">${def.label}</div>
+          <div class="value">
+            <span class="big">${entry ? entry.time : '--:--'}</span>
+            ${entry ? formatPbDate(entry.date) : 'No time set'}
+          </div>
+        </div>
+        <div class="pb-edit" id="pbEdit_${def.id}">
+          <div class="prev">${entry ? `Current PB: ${entry.time} (${formatPbDate(entry.date)})` : 'No previous PB'}</div>
+          <input type="text" placeholder="mm:ss" id="pbInput_${def.id}">
+          <div style="display:flex;gap:8px;">
+            <button class="btn" data-pb-save="${def.id}">Save</button>
+            <button class="btn secondary" data-pb-cancel="${def.id}">Cancel</button>
+          </div>
+          <div class="delta" id="pbDelta_${def.id}"></div>
+        </div>`;
+      row.querySelector('.pb-row-main').addEventListener('click', () => {
+        document.querySelectorAll('.pb-edit.open').forEach(el => el.classList.remove('open'));
+        document.getElementById(`pbEdit_${def.id}`).classList.add('open');
+        document.getElementById(`pbInput_${def.id}`).value = '';
+        document.getElementById(`pbDelta_${def.id}`).textContent = '';
+      });
+      list.appendChild(row);
+    });
+
+    list.querySelectorAll('[data-pb-cancel]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById(`pbEdit_${btn.dataset.pbCancel}`).classList.remove('open');
+      });
+    });
+    list.querySelectorAll('[data-pb-save]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.pbSave;
+        const input = document.getElementById(`pbInput_${id}`);
+        const seconds = timeToSeconds(input.value.trim());
+        if (seconds === null) { alert('Enter a time as mm:ss, e.g. 22:15'); return; }
+        const pbs = getRunningPbs();
+        const prev = pbs[id];
+        const deltaEl = document.getElementById(`pbDelta_${id}`);
+        if (prev) {
+          const diff = seconds - timeToSeconds(prev.time);
+          deltaEl.textContent = diff < 0 ? `${Math.abs(diff)}s faster than previous PB` : diff > 0 ? `${diff}s slower than previous PB` : 'Same as previous PB';
+          deltaEl.style.color = diff < 0 ? 'var(--green)' : diff > 0 ? 'var(--coral)' : 'var(--muted)';
+        }
+        pbs[id] = { time: input.value.trim(), date: todayKey() };
+        saveRunningPbs(pbs);
+        setTimeout(renderRunningPbs, prev ? 1200 : 0);
+      });
+    });
+  }
+
+  function renderGym1rms() {
+    const list = document.getElementById('gym1rmList');
+    if (!list) return;
+    const rms = getGym1rms();
+    list.innerHTML = '';
+    GYM_1RM_DEFS.forEach(def => {
+      const entry = rms[def.id];
+      const row = document.createElement('div');
+      row.className = 'pb-row';
+      row.innerHTML = `
+        <div class="pb-row-main">
+          <div class="name">${def.label}</div>
+          <div class="value">
+            <span class="big">${entry ? entry.weight + ' kg' : '-- kg'}</span>
+            ${entry ? formatPbDate(entry.date) : 'No weight set'}
+          </div>
+        </div>
+        <div class="pb-edit" id="rmEdit_${def.id}">
+          <div class="prev">${entry ? `Current: ${entry.weight} kg (${formatPbDate(entry.date)})` : 'No previous value'}</div>
+          <input type="number" placeholder="Weight (kg)" id="rmInput_${def.id}">
+          <div style="display:flex;gap:8px;">
+            <button class="btn" data-rm-save="${def.id}">Save</button>
+            <button class="btn secondary" data-rm-cancel="${def.id}">Cancel</button>
+          </div>
+          <div class="delta" id="rmDelta_${def.id}"></div>
+        </div>`;
+      row.querySelector('.pb-row-main').addEventListener('click', () => {
+        document.querySelectorAll('.pb-edit.open').forEach(el => el.classList.remove('open'));
+        document.getElementById(`rmEdit_${def.id}`).classList.add('open');
+        document.getElementById(`rmInput_${def.id}`).value = '';
+        document.getElementById(`rmDelta_${def.id}`).textContent = '';
+      });
+      list.appendChild(row);
+    });
+
+    list.querySelectorAll('[data-rm-cancel]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById(`rmEdit_${btn.dataset.rmCancel}`).classList.remove('open');
+      });
+    });
+    list.querySelectorAll('[data-rm-save]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.rmSave;
+        const input = document.getElementById(`rmInput_${id}`);
+        const weight = Number(input.value);
+        if (!weight) { alert('Enter a weight in kg.'); return; }
+        const rms = getGym1rms();
+        const prev = rms[id];
+        const deltaEl = document.getElementById(`rmDelta_${id}`);
+        if (prev) {
+          const diff = weight - prev.weight;
+          deltaEl.textContent = diff > 0 ? `+${diff}kg vs previous` : diff < 0 ? `${diff}kg vs previous` : 'Same as previous';
+          deltaEl.style.color = diff > 0 ? 'var(--green)' : diff < 0 ? 'var(--coral)' : 'var(--muted)';
+        }
+        rms[id] = { weight, date: todayKey() };
+        saveGym1rms(rms);
+        setTimeout(renderGym1rms, prev ? 1200 : 0);
+      });
+    });
+  }
+
   window.addEventListener('load', () => {
     setTimeout(() => {
       seedHistoricalCalories();
       syncFoodLogFromRemote();
+      renderRecipeList();
       render7DayAvgCalories();
       renderTodaySnapshot();
       renderBriefingPreview();
       if (!getStoredToken()) renderNextRaceCard(null);
+      renderRunningPbs();
+      renderGym1rms();
     }, 400);
   });
 </script>
