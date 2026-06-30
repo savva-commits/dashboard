@@ -341,7 +341,7 @@
     position:absolute;
     inset:0;
     display:flex;
-    align-items:center;
+    align-items:baseline;
     justify-content:center;
   }
   .ring-center .num{
@@ -354,8 +354,6 @@
     font-size:22px;
     font-weight:700;
     margin-left:2px;
-    align-self:flex-end;
-    margin-bottom:8px;
   }
   .recovery-label{
     font-size:15px;
