@@ -702,6 +702,23 @@
     align-items:stretch;
   }
   body[data-layout="desktop"] .week-day-chips .week-chip{width:100%;}
+  body[data-layout="desktop"] .week-day-card{min-height:190px;}
+  body[data-layout="desktop"] .week-day-card-header .day-name{font-size:15px;}
+  /* The Week tab's day grid needs the full main width to show all 7 days
+     at a usable size, so unlike every other tab it stacks the side panel
+     below instead of beside the main column on desktop. */
+  body[data-layout="desktop"] #tab-week .split-layout{
+    flex-direction:column;
+    align-items:stretch;
+  }
+  body[data-layout="desktop"] #tab-week .split-layout > .split-col:last-child{
+    flex-direction:row;
+    flex-wrap:wrap;
+  }
+  body[data-layout="desktop"] #tab-week .split-layout > .split-col:last-child > .card{
+    flex:1;
+    min-width:220px;
+  }
 
   .week-chip{
     display:inline-flex;
@@ -727,6 +744,23 @@
     opacity:0.6;
     padding:0;
     margin-left:2px;
+  }
+  .week-chip .tick-btn{
+    background:none;
+    border:none;
+    font-weight:800;
+    font-size:13px;
+    line-height:1;
+    cursor:pointer;
+    color:inherit;
+    opacity:0.7;
+    padding:0;
+    margin-left:4px;
+  }
+  .week-chip.is-done .tick-btn{opacity:1;}
+  .week-day-card-header .day-complete-badge{
+    font-size:12px;
+    margin-left:6px;
   }
   .week-chip.locked-chip{
     background:#fde2de;
@@ -3209,8 +3243,17 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     if (task.done) classes.push('is-done');
     return `<span class="${classes.join(' ')}" data-task-id="${task.id}" draggable="${draggable}">
       <span>${task.icon}</span><span>${task.label}</span>
+      ${!locked ? `<button class="tick-btn" data-tick-id="${task.id}" aria-label="${task.done ? 'Mark incomplete' : 'Mark complete'}">${task.done ? '↺' : '✓'}</button>` : ''}
       ${!locked ? `<button class="remove-btn" data-remove-id="${task.id}" aria-label="Remove">✕</button>` : ''}
     </span>`;
+  }
+
+  function toggleWeekTaskDone(taskId) {
+    if (!weekPlanCache) return;
+    const task = weekPlanCache.find(t => t.id === taskId);
+    if (!task) return;
+    task.done = !task.done;
+    persistWeekPlan();
   }
 
   function renderWeekTab() {
@@ -3255,9 +3298,10 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
       const lockedEvents = fjcEvents.filter(e => (e.start.getDay() + 6) % 7 === idx);
       const lockedChips = lockedEvents.map(e => `<span class="week-chip locked-chip">🔒 ${e.title}</span>`).join('');
       const chips = dayTasks.map(t => weekChipHtml(t)).join('');
+      const dayComplete = dayTasks.length > 0 && dayTasks.every(t => t.done);
       return `<div class="week-day-card${idx === todayIdx ? ' is-today' : ''}" data-day-idx="${idx}">
         <div class="week-day-card-header">
-          <span class="day-name">${WEEK_DAY_SHORT[idx]}</span>
+          <span class="day-name">${WEEK_DAY_SHORT[idx]}${dayComplete ? '<span class="day-complete-badge">✅</span>' : ''}</span>
           <span class="day-date">${date.getDate()}/${date.getMonth() + 1}</span>
         </div>
         <div class="week-day-chips" data-day-idx="${idx}">${lockedChips}${chips}</div>
@@ -3330,6 +3374,13 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         removeWeekTask(btn.dataset.removeId);
+      });
+    });
+    document.querySelectorAll('.tick-btn').forEach(btn => {
+      btn.addEventListener('mousedown', (e) => e.stopPropagation());
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleWeekTaskDone(btn.dataset.tickId);
       });
     });
 
