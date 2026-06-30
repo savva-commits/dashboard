@@ -2306,7 +2306,14 @@
   // draws itself left-to-right over 800ms, then pops each point in one by
   // one — skipped entirely under prefers-reduced-motion, which jumps
   // straight to the fully-drawn state.
+  // Guards against overlapping animation runs — applyWhoopDataToUI can be
+  // called more than once during load (cache check, then a fresh fetch),
+  // and without this an older still-running rAF loop would race the newer
+  // one and leave points part-way drawn.
+  let trendChartAnimToken = 0;
+
   function drawTrendChart(scores) {
+    const myToken = ++trendChartAnimToken;
     const canvas = document.getElementById('trendChart');
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
@@ -2365,6 +2372,7 @@
     const lineDuration = 800;
     const lineStart = performance.now();
     function lineTick(now) {
+      if (myToken !== trendChartAnimToken) return;
       const t = Math.min((now - lineStart) / lineDuration, 1);
       ctx.clearRect(0, 0, w, h);
       drawLine(t);
@@ -2372,10 +2380,12 @@
       else popInPoints(0);
     }
     function popInPoints(idx) {
+      if (myToken !== trendChartAnimToken) return;
       if (idx >= points.length) return;
       const popDuration = 150;
       const popStart = performance.now();
       function popTick(now) {
+        if (myToken !== trendChartAnimToken) return;
         const t = Math.min((now - popStart) / popDuration, 1);
         ctx.clearRect(0, 0, w, h);
         drawLine(1);
