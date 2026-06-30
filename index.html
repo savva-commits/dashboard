@@ -1542,6 +1542,18 @@
     renderNextRaceCard(upcoming[0] || null);
   }
 
+  // YYYY-MM-DD from a Date's LOCAL components. Date#toISOString() converts
+  // to UTC first, which silently rolls the date back by one in any UTC+
+  // timezone (e.g. the UK in BST) for anything computed near local
+  // midnight — every evening, "today"/"this week's Monday" would key to
+  // the wrong day.
+  function localDateKey(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
   function getMonday(d) {
     const date = new Date(d);
     date.setHours(0, 0, 0, 0);
@@ -1552,7 +1564,7 @@
   }
 
   function currentWeekKey() {
-    return getMonday(new Date()).toISOString().slice(0, 10);
+    return localDateKey(getMonday(new Date()));
   }
 
   function renderTrainingForRaceWeek(fjcEvents) {
@@ -1902,7 +1914,7 @@
   }
 
   function todayKey() {
-    return new Date().toISOString().slice(0, 10);
+    return localDateKey(new Date());
   }
 
   const WHOOP_DATA_CACHE_KEY = 'whoop_data_cache';
