@@ -7,11 +7,26 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#84cc16">
 <link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&display=swap" rel="stylesheet">
+<script>
+  // Applied before first paint so a saved dark-mode preference never flashes
+  // light on load.
+  (function () {
+    try {
+      if (localStorage.getItem('theme') === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    } catch (e) {}
+  })();
+</script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
     --bg:#f7faf5;
     --card:#ffffff;
+    --card-alt:#f1f5ef;
     --ink:#15201a;
     --muted:#6b7a70;
     --lime:#84cc16;
@@ -23,7 +38,67 @@
     --red:#ef4444;
     --radius:20px;
     --shadow:0 4px 16px rgba(20,40,20,0.06);
+    --border:#eef2ec;
+    --input-border:#dde6da;
+    --input-bg:#f7faf5;
+    --highlight-bg:#eef9da;
+    --overlay:rgba(20,32,20,0.45);
+    --ring-track:var(--border);
+    --serif:'DM Serif Display', Georgia, serif;
+
+    /* Recovery-tier accents, shared by the animated ring, trend chart and
+       chip palette so colour-coding stays consistent everywhere. */
+    --rec-green:#1D9E75;
+    --rec-amber:#D4920A;
+    --rec-red:#D94040;
+
+    --green-light:#E8F7F2;
+    --teal-light:#E4F4F7;
+    --coral-light:#FAEAE5;
+    --amber-light:#FDF3DC;
+    --purple-light:#F0ECFA;
+    --grey-light:#EDEBE8;
+    --blue-light:#EFF6FF;
+    --pink-light:#FCE4EC;
+    --red-light:#FBE3E0;
+    --purple:#7C5CBF;
+    --blue:#2563EB;
+    --pink:#C2185B;
+    --grey-text:#555555;
   }
+  html[data-theme="dark"]{
+    --bg:#0F0F0F;
+    --card:#1A1A1A;
+    --card-alt:#222222;
+    --ink:#F0F0F0;
+    --muted:#888888;
+    --border:#2E2E2E;
+    --input-border:#2E2E2E;
+    --input-bg:#2A2A2A;
+    --highlight-bg:#16210d;
+    --overlay:rgba(0,0,0,0.6);
+    --shadow:0 4px 16px rgba(0,0,0,0.4);
+    --ring-track:#2A2A2A;
+
+    --green-light:#0D2E22;
+    --teal-light:#0A2830;
+    --coral-light:#2E1810;
+    --amber-light:#2E2008;
+    --purple-light:#1E1630;
+    --grey-light:#2A2A2A;
+    --blue-light:#16243d;
+    --pink-light:#2e1620;
+    --red-light:#2E1010;
+  }
+  html[data-theme="dark"] .card,
+  html[data-theme="dark"] .metric-card,
+  html[data-theme="dark"] .week-day-card,
+  html[data-theme="dark"] .workout-card{
+    border:1px solid var(--border);
+  }
+  html[data-theme="dark"] ::-webkit-scrollbar{width:10px;height:10px;}
+  html[data-theme="dark"] ::-webkit-scrollbar-track{background:var(--bg);}
+  html[data-theme="dark"] ::-webkit-scrollbar-thumb{background:var(--border);border-radius:6px;}
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
@@ -32,7 +107,37 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
     padding-bottom:84px;
+    transition:background 0s, color 0s;
   }
+  .serif-display{
+    font-family:var(--serif);
+    font-weight:400;
+  }
+  /* Display typography — restrained to large headline numbers only, per
+     the "premium feel" pass. Everything under 20px stays on the system
+     font stack (set explicitly below since font-family otherwise
+     cascades into the small unit suffixes). */
+  .ring-center .num,
+  .metric-card .value,
+  .mini-ring .val,
+  .pb-row .value .big,
+  .hero-stat-value,
+  header.topbar h1,
+  .week-header-row h2{
+    font-family:var(--serif);
+    font-weight:400;
+  }
+  .metric-card .value small,
+  .hero-stat-value small,
+  .ring-center .pct{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-weight:700;
+  }
+  input[type=text], input[type=number], input[type=password], textarea, select{
+    background:var(--input-bg);
+    color:var(--ink);
+  }
+  input::placeholder, textarea::placeholder{color:var(--muted);opacity:1;}
   header.topbar{
     padding:20px 20px 8px;
     display:flex;
@@ -68,7 +173,7 @@
     display:none;
     position:fixed;
     inset:0;
-    background:rgba(20,32,20,0.45);
+    background:var(--overlay);
     z-index:1000;
     align-items:center;
     justify-content:center;
@@ -113,7 +218,7 @@
   }
   .segmented{
     display:flex;
-    background:#eef2ec;
+    background:var(--border);
     border-radius:12px;
     padding:4px;
     gap:4px;
@@ -133,6 +238,40 @@
     background:var(--card);
     color:var(--ink);
     box-shadow:0 1px 4px rgba(0,0,0,0.12);
+  }
+  .settings-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-top:14px;
+  }
+  .settings-row:first-of-type{margin-top:0;}
+  .toggle-switch{
+    position:relative;
+    width:48px;
+    height:28px;
+    flex-shrink:0;
+    border-radius:14px;
+    border:none;
+    background:var(--border);
+    cursor:pointer;
+    padding:0;
+  }
+  .toggle-switch::after{
+    content:"";
+    position:absolute;
+    top:3px;left:3px;
+    width:22px;height:22px;
+    border-radius:50%;
+    background:#fff;
+    box-shadow:0 1px 3px rgba(0,0,0,0.3);
+  }
+  .toggle-switch.on{background:var(--lime);}
+  .toggle-switch.on::after{left:23px;}
+  @media (prefers-reduced-motion: no-preference){
+    .toggle-switch::after{transition:left 180ms ease;}
+    .toggle-switch{transition:background 180ms ease;}
   }
 
   .split-layout{
@@ -164,6 +303,15 @@
   }
   .tab-panel{display:none;}
   .tab-panel.active{display:block;}
+  @media (prefers-reduced-motion: no-preference){
+    .tab-panel.active{animation:tabFadeIn 150ms ease;}
+    .home-intro{animation:cardFadeIn 400ms ease both;}
+  }
+  @keyframes tabFadeIn{from{opacity:0;}to{opacity:1;}}
+  @keyframes cardFadeIn{
+    from{opacity:0;transform:translateY(8px);}
+    to{opacity:1;transform:translateY(0);}
+  }
 
   .card{
     background:var(--card);
@@ -184,37 +332,55 @@
   /* Recovery hero */
   .recovery-hero{
     text-align:center;
-    padding:28px 18px 22px;
+    padding:32px 18px 24px;
   }
-  .recovery-ring{
-    width:170px;
-    height:170px;
-    margin:0 auto 10px;
-    border-radius:50%;
+  .recovery-ring-wrap{
+    position:relative;
+    width:200px;
+    height:200px;
+    margin:0 auto 12px;
+  }
+  .recovery-ring-wrap svg{
+    width:100%;
+    height:100%;
+    transform:rotate(-90deg);
+    overflow:visible;
+  }
+  .recovery-ring-wrap .ring-track{
+    fill:none;
+    stroke:var(--ring-track);
+    stroke-width:14;
+  }
+  .recovery-ring-wrap .ring-progress{
+    fill:none;
+    stroke:var(--ring-color, var(--lime));
+    stroke-width:14;
+    stroke-linecap:round;
+    stroke-dasharray:527.79;
+    stroke-dashoffset:527.79;
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .recovery-ring-wrap .ring-progress{transition:stroke-dashoffset 900ms cubic-bezier(0.16,1,0.3,1), stroke 300ms ease;}
+  }
+  .ring-center{
+    position:absolute;
+    inset:0;
     display:flex;
     align-items:center;
     justify-content:center;
-    background:conic-gradient(var(--ring-color,var(--lime)) calc(var(--pct,0)*1%), #eef2ec 0);
-    position:relative;
   }
-  .recovery-ring::before{
-    content:"";
-    position:absolute;
-    inset:12px;
-    border-radius:50%;
-    background:var(--card);
-  }
-  .recovery-ring .num{
+  .ring-center .num{
     position:relative;
-    font-size:52px;
-    font-weight:800;
-    letter-spacing:-0.03em;
+    font-size:56px;
+    line-height:1;
   }
-  .recovery-ring .pct{
+  .ring-center .pct{
     position:relative;
-    font-size:20px;
+    font-size:22px;
     font-weight:700;
     margin-left:2px;
+    align-self:flex-end;
+    margin-bottom:8px;
   }
   .recovery-label{
     font-size:15px;
@@ -223,6 +389,38 @@
     text-transform:uppercase;
     letter-spacing:0.05em;
   }
+  .hero-stat-row{
+    display:flex;
+    justify-content:center;
+    gap:10px;
+    margin-top:18px;
+  }
+  .hero-stat-chip{
+    background:var(--card-alt);
+    border-radius:14px;
+    padding:10px 18px;
+    min-width:100px;
+  }
+  .hero-stat-label{
+    font-size:11px;
+    font-weight:700;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+  }
+  .hero-stat-value{
+    font-size:20px;
+    font-weight:800;
+    letter-spacing:-0.02em;
+    margin-top:2px;
+  }
+  .hero-stat-value small{font-size:12px;font-weight:700;color:var(--muted);}
+  .sleep-duration-sub{
+    font-size:13px;
+    color:var(--muted);
+    margin-top:2px;
+  }
+  .sleep-duration-sub small{font-size:12px;}
 
   .metric-grid{
     display:grid;
@@ -278,6 +476,12 @@
     width:100%;
     cursor:pointer;
   }
+  /* Press feedback for every primary/secondary action button, plus the
+     Week tab's own add-task button which doesn't share the .btn class. */
+  @media (prefers-reduced-motion: no-preference){
+    .btn, .week-add-btn{transition:transform 100ms ease;}
+    .btn:active, .week-add-btn:active{transform:scale(0.97);}
+  }
   .btn.secondary{
     background:var(--teal);
     color:#fff;
@@ -303,7 +507,7 @@
     justify-content:space-between;
     align-items:center;
     padding:10px 0;
-    border-bottom:1px solid #eef2ec;
+    border-bottom:1px solid var(--border);
   }
   .event-row:last-child{border-bottom:none;}
   .event-row.faded{opacity:0.4;}
@@ -324,7 +528,7 @@
     justify-content:space-between;
     align-items:center;
     padding:12px 0;
-    border-bottom:1px solid #eef2ec;
+    border-bottom:1px solid var(--border);
   }
   .session-row:last-child{border-bottom:none;}
   .session-row .day{font-weight:700;font-size:14px;width:42px;color:var(--muted);}
@@ -336,12 +540,12 @@
     padding:4px 8px;
     border-radius:8px;
   }
-  .tag-gym{background:#eef2ff;color:var(--teal);}
-  .tag-run{background:#fff4e0;color:var(--yellow);}
-  .tag-bike{background:#e9f9ec;color:var(--green);}
-  .tag-rest{background:#f1f1f1;color:var(--muted);}
-  .tag-golf{background:#f0fbf6;color:var(--teal);}
-  .tag-padel{background:#fff0f6;color:var(--coral);}
+  .tag-gym{background:var(--teal-light);color:var(--teal);}
+  .tag-run{background:var(--amber-light);color:var(--amber);}
+  .tag-bike{background:var(--green-light);color:var(--green);}
+  .tag-rest{background:var(--grey-light);color:var(--muted);}
+  .tag-golf{background:var(--teal-light);color:var(--teal);}
+  .tag-padel{background:var(--coral-light);color:var(--coral);}
 
   .ring-row{
     display:flex;
@@ -358,7 +562,7 @@
     display:flex;
     align-items:center;
     justify-content:center;
-    background:conic-gradient(var(--ring-color,var(--lime)) calc(var(--pct,0)*1%), #eef2ec 0);
+    background:conic-gradient(var(--ring-color,var(--lime)) calc(var(--pct,0)*1%), var(--ring-track) 0);
     position:relative;
   }
   .mini-ring::before{
@@ -392,10 +596,22 @@
     align-items:center;
     gap:10px;
     padding:12px 0;
-    border-bottom:1px solid #eef2ec;
+    border-bottom:1px solid var(--border);
   }
   .food-row:last-child{border-bottom:none;}
   .food-row .name{font-weight:700;font-size:15px;flex:1;}
+  @keyframes foodRowSlideIn{
+    from{opacity:0;transform:translateX(24px);}
+    to{opacity:1;transform:translateX(0);}
+  }
+  @keyframes foodRowSlideOut{
+    from{opacity:1;transform:translateX(0);}
+    to{opacity:0;transform:translateX(-24px);}
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .food-row.slide-in{animation:foodRowSlideIn 250ms ease;}
+    .food-row.slide-out{animation:foodRowSlideOut 200ms ease forwards;}
+  }
   .food-row .macro{font-size:13px;color:var(--muted);white-space:nowrap;}
   .food-row .delete-btn{
     background:none;
@@ -413,7 +629,7 @@
     align-items:center;
     gap:10px;
     padding:12px 0;
-    border-bottom:1px solid #eef2ec;
+    border-bottom:1px solid var(--border);
   }
   .recipe-row:last-child{border-bottom:none;}
   .recipe-row .recipe-main{
@@ -432,7 +648,7 @@
   }
   .recipe-row .icon-btn.delete{color:var(--coral);font-size:18px;font-weight:800;}
 
-  .pb-row{padding:12px 0;border-bottom:1px solid #eef2ec;}
+  .pb-row{padding:12px 0;border-bottom:1px solid var(--border);}
   .pb-row:last-child{border-bottom:none;}
   .pb-row-main{
     display:flex;
@@ -455,7 +671,7 @@
     width:100%;
     padding:10px;
     border-radius:8px;
-    border:1px solid #dde6da;
+    border:1px solid var(--input-border);
     font-size:15px;
     margin-bottom:8px;
   }
@@ -463,7 +679,7 @@
   .pb-edit .delta{font-size:12px;font-weight:700;margin-top:6px;}
 
   .workout-card{
-    border:2px solid #eef2ec;
+    border:2px solid var(--border);
     border-radius:16px;
     padding:16px;
     margin-bottom:12px;
@@ -471,6 +687,10 @@
   }
   .workout-card:last-child{margin-bottom:0;}
   .workout-card:hover{border-color:var(--lime);}
+  @media (prefers-reduced-motion: no-preference){
+    .workout-card{transition:transform 100ms ease;}
+    .workout-card:active{transform:scale(0.97);}
+  }
   .workout-card .wname{font-size:17px;font-weight:800;}
   .workout-card .wsub{font-size:13px;color:var(--muted);margin-top:2px;}
   .workout-card .wmeta{font-size:12px;color:var(--muted);margin-top:8px;}
@@ -484,7 +704,7 @@
   }
   .workout-exercise{
     padding:14px 0;
-    border-bottom:1px solid #eef2ec;
+    border-bottom:1px solid var(--border);
   }
   .workout-exercise:last-child{border-bottom:none;}
   .workout-exercise-header{
@@ -505,27 +725,37 @@
     width:90px;
     padding:8px 10px;
     border-radius:8px;
-    border:1px solid #dde6da;
+    border:1px solid var(--input-border);
     font-size:15px;
   }
   .workout-weight-row span{font-size:13px;color:var(--muted);}
   .set-checks{display:flex;gap:8px;flex-wrap:wrap;}
   .set-check{
+    position:relative;
     display:flex;
     align-items:center;
     gap:4px;
     font-size:12px;
     color:var(--muted);
-    background:#f1f5ef;
+    background:var(--card-alt);
     border-radius:8px;
     padding:6px 10px;
     cursor:pointer;
   }
   .set-check input{accent-color:var(--lime);width:16px;height:16px;}
-  .set-check.done{background:#e9f9ec;color:var(--green);font-weight:700;}
+  .set-check.done{background:var(--green-light);color:var(--green);font-weight:700;}
+  @keyframes exerciseCompleteFlash{
+    0%{background:transparent;}
+    22%{background:var(--green-light);}
+    66%{background:var(--green-light);}
+    100%{background:transparent;}
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .workout-exercise.all-complete-flash{animation:exerciseCompleteFlash 900ms ease;}
+  }
 
   .suggestion-banner{
-    background:#eef9e3;
+    background:var(--highlight-bg);
     border:1px solid var(--lime);
     border-radius:14px;
     padding:14px 16px;
@@ -545,7 +775,7 @@
     align-items:center;
     gap:12px;
     padding:12px 0;
-    border-bottom:1px solid #eef2ec;
+    border-bottom:1px solid var(--border);
   }
   .target-row:last-child{border-bottom:none;}
   .target-row.completed .desc{
@@ -554,7 +784,7 @@
   }
   .target-row.completed{opacity:0.55;}
   .target-row.suggested{
-    background:#f7fcef;
+    background:var(--highlight-bg);
     margin:0 -18px;
     padding:12px 18px;
     border-radius:10px;
@@ -566,6 +796,38 @@
     accent-color:var(--lime);
   }
   .target-row .desc{font-size:15px;flex:1;}
+  @media (prefers-reduced-motion: no-preference){
+    .target-row .desc{transition:opacity 300ms ease;}
+  }
+
+  /* Tick-off micro-interaction: checkbox bounce + a small radiating dot
+     burst, reused by both the Training tab and Gym set-checks. */
+  .checkbox-wrap{position:relative;display:inline-flex;}
+  @media (prefers-reduced-motion: no-preference){
+    .checkbox-wrap input.tick-bounce, .set-check.tick-bounce{animation:checkBounce 200ms ease;}
+  }
+  @keyframes checkBounce{
+    0%{transform:scale(1);}
+    50%{transform:scale(1.3);}
+    100%{transform:scale(1);}
+  }
+  .tick-burst-dot{
+    position:absolute;
+    top:50%;left:50%;
+    width:6px;height:6px;
+    margin:-3px;
+    border-radius:50%;
+    background:var(--lime);
+    pointer-events:none;
+    opacity:1;
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .tick-burst-dot{animation:burstOut 350ms ease-out forwards;}
+  }
+  @keyframes burstOut{
+    from{opacity:1;transform:translate(0,0) scale(1);}
+    to{opacity:0;transform:translate(var(--bx),var(--by)) scale(0.4);}
+  }
   .target-row .bonus-label{
     font-size:11px;
     font-weight:800;
@@ -578,7 +840,7 @@
     display:flex;
     gap:10px;
     padding:10px 0;
-    border-bottom:1px solid #eef2ec;
+    border-bottom:1px solid var(--border);
   }
   .briefing-bullet:last-child{border-bottom:none;}
   .briefing-bullet .dot{
@@ -595,6 +857,19 @@
     box-shadow:0 -2px 12px rgba(20,40,20,0.08);
     display:flex;
     padding:8px max(8px,env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom));
+  }
+  .nav-indicator{
+    position:absolute;
+    top:0;
+    left:max(8px,env(safe-area-inset-left));
+    width:calc((100% - max(8px,env(safe-area-inset-left)) - 8px) / 7);
+    height:3px;
+    background:var(--lime);
+    border-radius:0 0 3px 3px;
+    pointer-events:none;
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .nav-indicator{transition:transform 200ms ease;}
   }
   nav.tabbar button{
     flex:1;
@@ -662,6 +937,13 @@
     align-items:flex-start;
   }
   .week-pool.drop-target{outline:2px dashed var(--lime);outline-offset:4px;border-radius:12px;}
+  @media (prefers-reduced-motion: no-preference){
+    .week-pool.drop-target, .week-day-chips.drop-target{animation:dropZonePulse 900ms ease infinite;}
+  }
+  @keyframes dropZonePulse{
+    0%,100%{box-shadow:0 0 0 0 rgba(132,204,22,0.45);}
+    50%{box-shadow:0 0 0 6px rgba(132,204,22,0.12);}
+  }
   .week-day-grid{
     display:flex;
     flex-direction:column;
@@ -682,7 +964,7 @@
     padding:4px 6px;
     border-radius:8px;
   }
-  .week-day-card.is-today .week-day-card-header{background:#eef9da;}
+  .week-day-card.is-today .week-day-card-header{background:var(--highlight-bg);}
   .week-day-card-header .day-name{font-weight:800;font-size:14px;}
   .week-day-card-header .day-date{font-size:12px;color:var(--muted);}
   .week-day-chips{
@@ -733,6 +1015,15 @@
   }
   .week-chip.dragging{opacity:0.4;}
   .week-chip.is-done{opacity:0.45;text-decoration:line-through;cursor:default;}
+  @media (prefers-reduced-motion: no-preference){
+    .week-chip{transition:transform 100ms ease;}
+    .week-chip.dragging{transform:rotate(2deg) scale(1.05);}
+    .week-chip.drop-bounce{animation:chipDropBounce 150ms ease;}
+  }
+  @keyframes chipDropBounce{
+    0%{transform:scale(1.05);}
+    100%{transform:scale(1);}
+  }
   .week-chip .remove-btn{
     background:none;
     border:none;
@@ -763,20 +1054,20 @@
     margin-left:6px;
   }
   .week-chip.locked-chip{
-    background:#fde2de;
+    background:var(--coral-light);
     color:var(--coral);
     cursor:default;
     font-weight:800;
   }
 
-  .chip-green{background:#E8F7F2;color:#1D9E75;}
-  .chip-teal{background:#E4F4F7;color:#0E8A9E;}
-  .chip-coral{background:#FAEAE5;color:#E05C3A;}
-  .chip-amber{background:#FDF3DC;color:#D4920A;}
-  .chip-purple{background:#F0ECFA;color:#7C5CBF;}
-  .chip-grey{background:#EDEBE8;color:#555555;}
-  .chip-blue{background:#EFF6FF;color:#2563EB;}
-  .chip-pink{background:#FCE4EC;color:#C2185B;}
+  .chip-green{background:var(--green-light);color:var(--rec-green);}
+  .chip-teal{background:var(--teal-light);color:#0E8A9E;}
+  .chip-coral{background:var(--coral-light);color:#E05C3A;}
+  .chip-amber{background:var(--amber-light);color:var(--rec-amber);}
+  .chip-purple{background:var(--purple-light);color:var(--purple);}
+  .chip-grey{background:var(--grey-light);color:var(--grey-text);}
+  .chip-blue{background:var(--blue-light);color:var(--blue);}
+  .chip-pink{background:var(--pink-light);color:var(--pink);}
 
   .week-side-card .item-row{
     display:flex;
@@ -793,7 +1084,7 @@
     margin-bottom:4px;
   }
   .week-progress-row .bar{
-    background:#eef2ec;
+    background:var(--border);
     border-radius:8px;
     height:8px;
     overflow:hidden;
@@ -805,7 +1096,7 @@
     display:none;
     position:fixed;
     inset:0;
-    background:rgba(20,32,20,0.45);
+    background:var(--overlay);
     z-index:1100;
     align-items:center;
     justify-content:center;
@@ -835,9 +1126,9 @@
     width:100%;
     padding:12px 14px;
     border-radius:12px;
-    border:1px solid #e0e6dd;
+    border:1px solid var(--input-border);
     font-size:15px;
-    background:#f7faf5;
+    background:var(--input-bg);
     color:var(--ink);
   }
   .week-icon-grid{
@@ -849,14 +1140,14 @@
     aspect-ratio:1;
     border-radius:10px;
     border:2px solid transparent;
-    background:#f7faf5;
+    background:var(--input-bg);
     font-size:18px;
     cursor:pointer;
     display:flex;
     align-items:center;
     justify-content:center;
   }
-  .week-icon-grid button.selected{border-color:var(--lime);background:#eef9da;}
+  .week-icon-grid button.selected{border-color:var(--lime);background:var(--highlight-bg);}
   .week-colour-row{
     display:flex;
     gap:10px;
@@ -881,8 +1172,8 @@
     min-width:38px;
     padding:8px 4px;
     border-radius:10px;
-    border:1px solid #e0e6dd;
-    background:#f7faf5;
+    border:1px solid var(--input-border);
+    background:var(--input-bg);
     color:var(--muted);
     font-size:12px;
     font-weight:700;
@@ -918,14 +1209,17 @@
       <h2>Settings</h2>
       <button id="settingsCloseBtn" aria-label="Close">&times;</button>
     </div>
-    <div class="settings-row">
+    <div class="settings-row" style="display:block;">
       <div class="settings-label">Layout</div>
       <div class="segmented" id="layoutSegmented">
         <button data-layout="mobile" class="segmented-btn">Mobile</button>
         <button data-layout="desktop" class="segmented-btn">Desktop</button>
       </div>
     </div>
-    <p class="placeholder-text" style="margin-top:14px;">More settings coming soon.</p>
+    <div class="settings-row">
+      <div class="settings-label" style="margin-bottom:0;">Dark mode</div>
+      <button class="toggle-switch" id="darkModeToggle" aria-label="Toggle dark mode"></button>
+    </div>
   </div>
 </div>
 
@@ -933,35 +1227,37 @@
 
   <!-- HOME -->
   <section class="tab-panel active" id="tab-home">
-    <div class="card recovery-hero">
-      <div class="recovery-ring" id="recoveryRing" style="--pct:0;">
-        <div><span class="num" id="recoveryNum">--</span><span class="pct">%</span></div>
+    <div class="card recovery-hero home-intro" style="animation-delay:0ms;">
+      <div class="recovery-ring-wrap" id="recoveryRing" style="--pct:0;">
+        <svg viewBox="0 0 200 200">
+          <circle class="ring-track" cx="100" cy="100" r="84"></circle>
+          <circle class="ring-progress" id="ringProgressCircle" cx="100" cy="100" r="84"></circle>
+        </svg>
+        <div class="ring-center"><span class="num serif-display" id="recoveryNum">--</span><span class="pct">%</span></div>
       </div>
       <div class="recovery-label" id="recoveryLabel">Recovery — connect WHOOP</div>
+      <div class="hero-stat-row">
+        <div class="hero-stat-chip home-intro" style="animation-delay:80ms;">
+          <div class="hero-stat-label">HRV</div>
+          <div class="hero-stat-value"><span id="hrvValue">--</span> <small>ms</small></div>
+        </div>
+        <div class="hero-stat-chip home-intro" style="animation-delay:160ms;">
+          <div class="hero-stat-label">RHR</div>
+          <div class="hero-stat-value"><span id="rhrValue">--</span> <small>bpm</small></div>
+        </div>
+      </div>
     </div>
 
-    <div class="metric-grid" id="whoopMetricGrid">
-      <div class="metric-card accent-teal">
-        <div class="label">HRV</div>
-        <div class="value" id="hrvValue">-- <small>ms</small></div>
-      </div>
-      <div class="metric-card accent-coral">
-        <div class="label">RHR</div>
-        <div class="value" id="rhrValue">-- <small>bpm</small></div>
-      </div>
-      <div class="metric-card accent-yellow">
-        <div class="label">Sleep Perf</div>
-        <div class="value" id="sleepPerfValue">-- <small>%</small></div>
-      </div>
-      <div class="metric-card accent-lime">
+    <div class="metric-grid" id="whoopMetricGrid" style="grid-template-columns:1fr 1fr;">
+      <div class="metric-card accent-yellow home-intro" style="animation-delay:240ms;">
         <div class="label">Sleep</div>
-        <div class="value" id="sleepHoursValue">-- <small>h</small></div>
+        <div class="value"><span id="sleepPerfValue">--</span> <small>%</small></div>
+        <div class="sleep-duration-sub"><span id="sleepHoursValue">--</span> <small>h</small></div>
       </div>
-    </div>
-
-    <div class="card metric-card accent-coral">
-      <div class="label">Avg calories · 7d</div>
-      <div class="value" id="avgCaloriesValue">-- <small>kcal</small></div>
+      <div class="metric-card accent-coral home-intro" style="animation-delay:320ms;">
+        <div class="label">Avg calories · 7d</div>
+        <div class="value"><span id="avgCaloriesValue">--</span> <small>kcal</small></div>
+      </div>
     </div>
 
     <div class="split-layout">
@@ -977,6 +1273,10 @@
           <h2>Briefing Preview</h2>
           <div id="briefingPreview"><p class="placeholder-text">No briefing yet — open the Briefing tab to chat.</p></div>
           <button class="btn secondary" id="openBriefingFromHomeBtn" style="margin-top:10px;">Open Briefing</button>
+        </div>
+        <div class="card">
+          <h2>Upcoming Session</h2>
+          <div id="homeUpcomingSession"><p class="placeholder-text">No session planned — open the Week tab to plan one.</p></div>
         </div>
       </div>
     </div>
@@ -1052,12 +1352,12 @@
           <div id="recipeList"></div>
           <button class="btn secondary" id="addRecipeBtn" style="margin-top:10px;">+ Save Recipe</button>
           <div id="addRecipeForm" style="display:none;margin-top:14px;">
-            <textarea id="recipeDescInput" placeholder="Describe the meal, e.g. &quot;grilled chicken breast with rice and broccoli&quot;" style="width:100%;min-height:70px;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;margin-bottom:8px;"></textarea>
+            <textarea id="recipeDescInput" placeholder="Describe the meal, e.g. &quot;grilled chicken breast with rice and broccoli&quot;" style="width:100%;min-height:70px;padding:12px;border-radius:10px;border:1px solid var(--input-border);font-size:15px;margin-bottom:8px;"></textarea>
             <button class="btn secondary" id="estimateRecipeBtn" style="margin-bottom:8px;">Estimate with AI</button>
-            <input type="text" id="recipeNameInput" placeholder="Recipe name" style="width:100%;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;margin-bottom:8px;">
+            <input type="text" id="recipeNameInput" placeholder="Recipe name" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--input-border);font-size:15px;margin-bottom:8px;">
             <div style="display:flex;gap:8px;margin-bottom:8px;">
-              <input type="number" id="recipeCaloriesInput" placeholder="Calories" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
-              <input type="number" id="recipeProteinInput" placeholder="Protein (g)" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
+              <input type="number" id="recipeCaloriesInput" placeholder="Calories" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--input-border);font-size:15px;">
+              <input type="number" id="recipeProteinInput" placeholder="Protein (g)" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--input-border);font-size:15px;">
             </div>
             <div style="display:flex;gap:8px;">
               <button class="btn" id="saveRecipeBtn">Save Recipe</button>
@@ -1067,11 +1367,11 @@
         </div>
         <button class="btn secondary" id="addFoodBtn">+ Add Food</button>
         <div class="card" id="addFoodForm" style="display:none;">
-          <input type="text" id="foodNameInput" placeholder="Food name" style="width:100%;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;margin-bottom:8px;">
+          <input type="text" id="foodNameInput" placeholder="Food name" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--input-border);font-size:15px;margin-bottom:8px;">
           <button class="btn secondary" id="estimateFoodBtn" style="margin-bottom:8px;">Estimate with AI</button>
           <div style="display:flex;gap:8px;margin-bottom:8px;">
-            <input type="number" id="foodCaloriesInput" placeholder="Calories" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
-            <input type="number" id="foodProteinInput" placeholder="Protein (g)" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
+            <input type="number" id="foodCaloriesInput" placeholder="Calories" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--input-border);font-size:15px;">
+            <input type="number" id="foodProteinInput" placeholder="Protein (g)" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--input-border);font-size:15px;">
           </div>
           <div style="display:flex;gap:8px;">
             <button class="btn" id="saveFoodBtn">Save</button>
@@ -1095,14 +1395,14 @@
         <div class="card" id="anthropicKeyCard">
           <h2>Anthropic API Key</h2>
           <p class="placeholder-text">Stored only in this browser's localStorage — never committed to the repo. Get a key at console.anthropic.com.</p>
-          <input type="password" id="anthropicKeyInput" placeholder="sk-ant-..." style="width:100%;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;margin:10px 0;">
+          <input type="password" id="anthropicKeyInput" placeholder="sk-ant-..." style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--input-border);font-size:15px;margin:10px 0;">
           <button class="btn secondary" id="saveAnthropicKeyBtn">Save Key</button>
         </div>
         <div class="card">
           <h2>Briefing Chat</h2>
           <div id="chatMessages" style="display:flex;flex-direction:column;gap:10px;max-height:50vh;overflow-y:auto;margin-bottom:12px;"></div>
           <div style="display:flex;gap:8px;">
-            <input type="text" id="chatInput" placeholder="How are you feeling today?" style="flex:1;padding:12px;border-radius:10px;border:1px solid #dde6da;font-size:15px;">
+            <input type="text" id="chatInput" placeholder="How are you feeling today?" style="flex:1;padding:12px;border-radius:10px;border:1px solid var(--input-border);font-size:15px;">
             <button class="btn" id="chatSendBtn" style="width:auto;padding:12px 18px;">Send</button>
           </div>
           <button class="btn secondary" id="chatResetBtn" style="margin-top:10px;">Reset Chat</button>
@@ -1226,6 +1526,7 @@
 </div>
 
 <nav class="tabbar">
+  <div class="nav-indicator" id="navIndicator"></div>
   <button class="active" data-tab="home"><span class="icon">●</span>Home</button>
   <button data-tab="racing"><span class="icon">🏁</span>Calendar</button>
   <button data-tab="training"><span class="icon">▲</span>Training</button>
@@ -1241,6 +1542,62 @@
   // tab's own init code further down ever executes.
   let weekPlanCache = null;
   let weekPlanCacheKey = null;
+
+  // ---- Animation helpers (used by the Home hero, micro-interactions etc) ----
+  function prefersReducedMotion() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  function getCssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  // Counts a number up from 0 to endValue inside el, easing out, respecting
+  // prefers-reduced-motion (jumps straight to the end value if set).
+  function animateCountUp(el, endValue, duration, opts) {
+    opts = opts || {};
+    if (!el) return;
+    if (endValue === null || endValue === undefined || Number.isNaN(Number(endValue))) {
+      el.textContent = '--';
+      return;
+    }
+    const end = Number(endValue);
+    const format = v => opts.decimals ? v.toFixed(opts.decimals) : String(Math.round(v));
+    if (prefersReducedMotion()) {
+      el.textContent = format(end);
+      if (opts.onUpdate) opts.onUpdate(end);
+      return;
+    }
+    const start = performance.now();
+    function tick(now) {
+      const t = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const current = end * eased;
+      el.textContent = format(current);
+      if (opts.onUpdate) opts.onUpdate(current);
+      if (t < 1) requestAnimationFrame(tick);
+      else { el.textContent = format(end); if (opts.onUpdate) opts.onUpdate(end); }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // Small radiating dot burst from a tick-off control (Training targets,
+  // Gym set-checks). The anchor must be position:relative so the dots —
+  // positioned absolute at its center — land in the right place.
+  function spawnTickBurst(anchorEl) {
+    if (prefersReducedMotion() || !anchorEl) return;
+    const angles = [-60, -20, 20, 60, 90];
+    const dist = 16;
+    angles.forEach(deg => {
+      const dot = document.createElement('span');
+      dot.className = 'tick-burst-dot';
+      const rad = deg * Math.PI / 180;
+      dot.style.setProperty('--bx', (Math.sin(rad) * dist).toFixed(1) + 'px');
+      dot.style.setProperty('--by', (-Math.cos(rad) * dist).toFixed(1) + 'px');
+      anchorEl.appendChild(dot);
+      dot.addEventListener('animationend', () => dot.remove(), { once: true });
+    });
+  }
 
   document.getElementById('topbarDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -1268,6 +1625,27 @@
     });
   });
 
+  // ---- Settings: dark mode ----
+  const THEME_KEY = 'theme';
+
+  function applyTheme(theme) {
+    if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    else document.documentElement.removeAttribute('data-theme');
+    const toggle = document.getElementById('darkModeToggle');
+    if (toggle) toggle.classList.toggle('on', theme === 'dark');
+  }
+
+  function initTheme() {
+    applyTheme(localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light');
+  }
+  initTheme();
+
+  document.getElementById('darkModeToggle').addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  });
+
   const settingsOverlay = document.getElementById('settingsOverlay');
   document.getElementById('settingsGearBtn').addEventListener('click', () => {
     settingsOverlay.classList.add('open');
@@ -1280,12 +1658,23 @@
   });
 
   const tabButtons = document.querySelectorAll('nav.tabbar button');
+  const tabButtonsArr = Array.from(tabButtons);
   const panels = document.querySelectorAll('.tab-panel');
+  const navIndicator = document.getElementById('navIndicator');
+
+  function moveNavIndicator(btn) {
+    if (!navIndicator) return;
+    const idx = tabButtonsArr.indexOf(btn);
+    navIndicator.style.transform = `translateX(${idx * 100}%)`;
+  }
+  moveNavIndicator(tabButtonsArr[0]);
+
   tabButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       tabButtons.forEach(b => b.classList.remove('active'));
       panels.forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
+      moveNavIndicator(btn);
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
       // Pull the latest food log whenever the Nutrition tab is opened, so
       // changes made on another device while this tab was already open
@@ -1304,8 +1693,19 @@
       if (btn.dataset.tab === 'week' && typeof loadWeekTab === 'function') {
         loadWeekTab();
       }
+      if (btn.dataset.tab === 'home' && typeof replayHomeIntroAnimation === 'function') {
+        replayHomeIntroAnimation();
+      }
     });
   });
+
+  function replayHomeIntroAnimation() {
+    document.querySelectorAll('.home-intro').forEach(el => {
+      el.classList.remove('home-intro');
+      void el.offsetWidth;
+      el.classList.add('home-intro');
+    });
+  }
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -1659,11 +2059,19 @@
       const row = document.createElement('div');
       row.className = 'target-row' + (completed ? ' completed' : '') + (isSuggested && !completed ? ' suggested' : '');
       row.innerHTML = `
-        <input type="checkbox" id="target_${t.id}" ${completed ? 'checked' : ''}>
+        <span class="checkbox-wrap"><input type="checkbox" id="target_${t.id}" ${completed ? 'checked' : ''}></span>
         <div class="desc">${t.label}${t.bonus ? '<span class="bonus-label">Bonus</span>' : ''}</div>
         <span class="tag ${t.tag}">${t.tagLabel}</span>`;
       row.querySelector('input').addEventListener('change', (e) => {
-        setTargetComplete(t.id, e.target.checked);
+        const checking = e.target.checked;
+        if (checking && !prefersReducedMotion()) {
+          e.target.classList.add('tick-bounce');
+          spawnTickBurst(row.querySelector('.checkbox-wrap'));
+          row.querySelector('.desc').style.opacity = '0.4';
+          setTimeout(() => { setTargetComplete(t.id, true); renderWeeklyTargets(); }, 300);
+          return;
+        }
+        setTargetComplete(t.id, checking);
         renderWeeklyTargets();
       });
       list.appendChild(row);
@@ -1683,7 +2091,7 @@
     el.innerHTML = `
       <div style="font-size:28px;font-weight:800;letter-spacing:-0.02em;">${completedCount} / ${required.length}</div>
       <div class="placeholder-text" style="margin-bottom:10px;">required targets complete</div>
-      <div style="background:#eef2ec;border-radius:8px;height:10px;overflow:hidden;margin-bottom:10px;">
+      <div style="background:var(--border);border-radius:8px;height:10px;overflow:hidden;margin-bottom:10px;">
         <div style="background:var(--lime);height:100%;width:${pct}%;"></div>
       </div>
       <div class="placeholder-text">Padel (bonus): ${padelDone ? 'done' : 'not yet'}</div>`;
@@ -1889,28 +2297,98 @@
   }
 
   function recoveryColor(score) {
-    if (score >= 67) return '#16a34a';
-    if (score >= 34) return '#eab308';
-    return '#ef4444';
+    if (score >= 67) return getCssVar('--rec-green') || '#1D9E75';
+    if (score >= 34) return getCssVar('--rec-amber') || '#D4920A';
+    return getCssVar('--rec-red') || '#D94040';
   }
 
+  // Draws the 14-day trend as a line with point markers. On first render it
+  // draws itself left-to-right over 800ms, then pops each point in one by
+  // one — skipped entirely under prefers-reduced-motion, which jumps
+  // straight to the fully-drawn state.
   function drawTrendChart(scores) {
     const canvas = document.getElementById('trendChart');
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
     ctx.clearRect(0, 0, w, h);
     if (!scores.length) return;
-    const barW = w / scores.length;
-    ctx.font = '10px -apple-system, sans-serif';
-    ctx.textAlign = 'center';
-    scores.forEach((s, i) => {
-      const barH = (s / 100) * (h - 22);
-      const x = i * barW + barW / 2;
-      ctx.fillStyle = recoveryColor(s);
-      ctx.fillRect(i * barW + 2, h - barH, barW - 4, barH);
-      ctx.fillStyle = '#15201a';
-      ctx.fillText(s + '%', x, h - barH - 4);
-    });
+
+    const padTop = 22, padBottom = 6, padX = 10;
+    const plotW = w - padX * 2;
+    const plotH = h - padTop - padBottom;
+    const stepX = scores.length > 1 ? plotW / (scores.length - 1) : 0;
+    const points = scores.map((s, i) => ({
+      x: padX + i * stepX,
+      y: padTop + plotH - (s / 100) * plotH,
+      s
+    }));
+    const lineColor = getCssVar('--lime') || '#84cc16';
+    const textColor = getCssVar('--ink') || '#15201a';
+
+    function drawLine(clipFraction) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, padX + plotW * clipFraction, h);
+      ctx.clip();
+      ctx.beginPath();
+      points.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 2.5;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawPoint(p, radius) {
+      if (radius <= 0) return;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = recoveryColor(p.s);
+      ctx.fill();
+      if (radius >= 3) {
+        ctx.font = '10px -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = textColor;
+        ctx.fillText(p.s + '%', p.x, Math.max(10, p.y - 8));
+      }
+    }
+
+    function settle() {
+      ctx.clearRect(0, 0, w, h);
+      drawLine(1);
+      points.forEach(p => drawPoint(p, 3.5));
+    }
+
+    if (prefersReducedMotion()) { settle(); return; }
+
+    const lineDuration = 800;
+    const lineStart = performance.now();
+    function lineTick(now) {
+      const t = Math.min((now - lineStart) / lineDuration, 1);
+      ctx.clearRect(0, 0, w, h);
+      drawLine(t);
+      if (t < 1) requestAnimationFrame(lineTick);
+      else popInPoints(0);
+    }
+    function popInPoints(idx) {
+      if (idx >= points.length) return;
+      const popDuration = 150;
+      const popStart = performance.now();
+      function popTick(now) {
+        const t = Math.min((now - popStart) / popDuration, 1);
+        ctx.clearRect(0, 0, w, h);
+        drawLine(1);
+        points.forEach((p, i) => {
+          if (i < idx) drawPoint(p, 3.5);
+          else if (i === idx) drawPoint(p, 3.5 * t);
+        });
+        if (t < 1) requestAnimationFrame(popTick);
+        else popInPoints(idx + 1);
+      }
+      requestAnimationFrame(popTick);
+    }
+    requestAnimationFrame(lineTick);
   }
 
   function todayKey() {
@@ -1925,16 +2403,29 @@
 
   function applyWhoopDataToUI(d) {
     if (d.score !== null && d.score !== undefined) {
-      document.getElementById('recoveryNum').textContent = d.score;
-      document.getElementById('recoveryRing').style.setProperty('--pct', d.score);
-      document.getElementById('recoveryRing').style.setProperty('--ring-color', recoveryColor(d.score));
+      const ringCircle = document.getElementById('ringProgressCircle');
+      const circumference = 2 * Math.PI * 84;
+      const color = recoveryColor(d.score);
+      const offset = circumference * (1 - d.score / 100);
+      document.getElementById('recoveryRing').style.setProperty('--ring-color', color);
+      ringCircle.style.stroke = color;
+      if (prefersReducedMotion()) {
+        ringCircle.style.strokeDashoffset = offset;
+      } else {
+        // Reset to fully-empty and commit that frame before animating to
+        // the target offset, so the CSS transition actually has something
+        // to animate between (otherwise both writes land in one frame).
+        ringCircle.style.strokeDashoffset = circumference;
+        requestAnimationFrame(() => { ringCircle.style.strokeDashoffset = offset; });
+      }
+      animateCountUp(document.getElementById('recoveryNum'), d.score, 900);
       document.getElementById('recoveryLabel').textContent =
-        d.score >= 67 ? 'Recovery — green' : d.score >= 34 ? 'Recovery — yellow' : 'Recovery — red';
+        d.score >= 67 ? 'Green day — push hard' : d.score >= 34 ? 'Yellow — stay moderate' : 'Red — rest up';
     }
-    if (d.hrv !== null) document.getElementById('hrvValue').innerHTML = d.hrv + ' <small>ms</small>';
-    if (d.rhr !== null) document.getElementById('rhrValue').innerHTML = d.rhr + ' <small>bpm</small>';
-    if (d.sleepPerf !== null) document.getElementById('sleepPerfValue').innerHTML = d.sleepPerf + ' <small>%</small>';
-    if (d.sleepHours !== null) document.getElementById('sleepHoursValue').innerHTML = d.sleepHours + ' <small>h</small>';
+    if (d.hrv !== null) animateCountUp(document.getElementById('hrvValue'), d.hrv, 700);
+    if (d.rhr !== null) animateCountUp(document.getElementById('rhrValue'), d.rhr, 700);
+    if (d.sleepPerf !== null) animateCountUp(document.getElementById('sleepPerfValue'), d.sleepPerf, 700);
+    if (d.sleepHours !== null) animateCountUp(document.getElementById('sleepHoursValue'), d.sleepHours, 700, { decimals: 1 });
     drawTrendChart(d.trendScores || []);
     document.getElementById('trendPlaceholder').style.display = (d.trendScores || []).length ? 'none' : '';
     if (d.score !== null && d.score !== undefined) localStorage.setItem('latest_recovery_score', String(d.score));
@@ -1947,16 +2438,17 @@
     const el = document.getElementById('todaySnapshotContent');
     if (!el) return;
     const recovery = localStorage.getItem('latest_recovery_score');
-    const hrv = document.getElementById('hrvValue') ? document.getElementById('hrvValue').textContent.trim() : '--';
-    const rhr = document.getElementById('rhrValue') ? document.getElementById('rhrValue').textContent.trim() : '--';
-    const sleepPerf = document.getElementById('sleepPerfValue') ? document.getElementById('sleepPerfValue').textContent.trim() : '--';
-    const sleepHours = document.getElementById('sleepHoursValue') ? document.getElementById('sleepHoursValue').textContent.trim() : '--';
+    const hrv = document.getElementById('hrvValue') ? document.getElementById('hrvValue').textContent.trim() + ' ms' : '--';
+    const rhr = document.getElementById('rhrValue') ? document.getElementById('rhrValue').textContent.trim() + ' bpm' : '--';
+    const sleepPerf = document.getElementById('sleepPerfValue') ? document.getElementById('sleepPerfValue').textContent.trim() + '%' : '--';
+    const sleepHours = document.getElementById('sleepHoursValue') ? document.getElementById('sleepHoursValue').textContent.trim() + 'h' : '--';
     el.innerHTML = `
       <div class="event-row"><span class="name">Recovery</span><span class="date">${recovery !== null ? recovery + '%' : '--'}</span></div>
       <div class="event-row"><span class="name">HRV</span><span class="date">${hrv}</span></div>
       <div class="event-row"><span class="name">RHR</span><span class="date">${rhr}</span></div>
       <div class="event-row"><span class="name">Sleep Perf</span><span class="date">${sleepPerf}</span></div>
       <div class="event-row"><span class="name">Sleep</span><span class="date">${sleepHours}</span></div>`;
+    if (typeof renderHomeUpcomingSession === 'function') renderHomeUpcomingSession();
   }
 
   function renderNextRaceCard(nextEvent) {
@@ -2110,10 +2602,10 @@
 
   function gatherBriefingContext() {
     const recovery = localStorage.getItem('latest_recovery_score');
-    const hrv = document.getElementById('hrvValue').textContent.trim();
-    const rhr = document.getElementById('rhrValue').textContent.trim();
-    const sleepPerf = document.getElementById('sleepPerfValue').textContent.trim();
-    const sleepHours = document.getElementById('sleepHoursValue').textContent.trim();
+    const hrv = document.getElementById('hrvValue').textContent.trim() + ' ms';
+    const rhr = document.getElementById('rhrValue').textContent.trim() + ' bpm';
+    const sleepPerf = document.getElementById('sleepPerfValue').textContent.trim() + '%';
+    const sleepHours = document.getElementById('sleepHoursValue').textContent.trim() + 'h';
     const isRaceWeek = localStorage.getItem('is_race_week') === '1';
 
     let nextRace = 'No upcoming FJC round on the calendar';
@@ -2174,7 +2666,7 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
       row.style.borderRadius = '14px';
       row.style.fontSize = '15px';
       row.style.lineHeight = '1.4';
-      row.style.background = isUser ? 'var(--lime)' : '#eef2ec';
+      row.style.background = isUser ? 'var(--lime)' : 'var(--border)';
       row.style.color = isUser ? '#15201a' : 'var(--ink)';
       row.textContent = m.content;
       container.appendChild(row);
@@ -2427,7 +2919,7 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
       </div>`;
   }
 
-  function renderFoodLog(log) {
+  function renderFoodLog(log, newEntryId) {
     const list = document.getElementById('foodLogList');
     list.innerHTML = '';
     if (log.length === 0) {
@@ -2436,37 +2928,46 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     }
     log.forEach(f => {
       const row = document.createElement('div');
-      row.className = 'food-row';
+      row.className = 'food-row' + (f.id === newEntryId ? ' slide-in' : '');
       row.innerHTML = `
         <div class="name">${f.name}</div>
         <div class="macro">${f.calories} kcal · ${f.protein}g protein</div>
         <button class="delete-btn" data-id="${f.id}">&times;</button>`;
-      row.querySelector('.delete-btn').addEventListener('click', () => deleteFoodEntry(f.id));
+      row.querySelector('.delete-btn').addEventListener('click', () => deleteFoodEntry(f.id, row));
       list.appendChild(row);
     });
   }
 
-  async function renderNutritionTab() {
+  async function renderNutritionTab(newEntryId) {
     const log = getFoodLog(todayKey());
     const totals = saveFoodLog(log); // recomputes daily_totals without changing the log itself
     const target = await loadCalorieTarget(false);
     renderNutritionRings(target, totals.calories, totals.protein);
-    renderFoodLog(log);
+    renderFoodLog(log, newEntryId);
   }
 
-  function deleteFoodEntry(id) {
-    const log = getFoodLog(todayKey()).filter(f => f.id !== id);
-    saveFoodLog(log);
-    pushFoodLogRemote(log);
-    renderNutritionTab();
+  function deleteFoodEntry(id, rowEl) {
+    const commit = () => {
+      const log = getFoodLog(todayKey()).filter(f => f.id !== id);
+      saveFoodLog(log);
+      pushFoodLogRemote(log);
+      renderNutritionTab();
+    };
+    if (rowEl && !prefersReducedMotion()) {
+      rowEl.classList.add('slide-out');
+      setTimeout(commit, 200);
+    } else {
+      commit();
+    }
   }
 
   function addFoodEntry(name, calories, protein) {
     const log = getFoodLog(todayKey());
-    log.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), name, calories: Math.round(calories), protein: Math.round(protein) });
+    const entry = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), name, calories: Math.round(calories), protein: Math.round(protein) };
+    log.push(entry);
     saveFoodLog(log);
     pushFoodLogRemote(log);
-    renderNutritionTab();
+    renderNutritionTab(entry.id);
   }
 
   async function estimateMacrosFromText(promptText) {
@@ -2687,9 +3188,16 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     }
     const el = document.getElementById('avgCaloriesValue');
     if (!el) return;
+    const unitEl = el.parentElement ? el.parentElement.querySelector('small') : null;
     // Genuinely no data yet until at least one day's food log exists from
     // before today — this fills in naturally after a day or two of use.
-    el.innerHTML = count ? Math.round(sum / count) + ' <small>kcal</small>' : '<small>No data yet</small>';
+    if (count) {
+      if (unitEl) unitEl.textContent = 'kcal';
+      animateCountUp(el, Math.round(sum / count), 700);
+    } else {
+      if (unitEl) unitEl.textContent = '';
+      el.textContent = 'No data yet';
+    }
   }
 
   // ---- Gym tab: running PBs + 1RMs ----
@@ -3032,8 +3540,26 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
         const idx = Number(label.dataset.exerciseIdx);
         const setIdx = Number(label.dataset.setIdx);
         const completed = activeSession.exercises[idx].completedSets;
-        if (completed.has(setIdx)) completed.delete(setIdx); else completed.add(setIdx);
-        renderActiveSession();
+        const isCompleting = !completed.has(setIdx);
+        const commit = () => {
+          if (completed.has(setIdx)) completed.delete(setIdx); else completed.add(setIdx);
+          const fullyComplete = completed.size === activeSession.exercises[idx].sets;
+          renderActiveSession();
+          if (isCompleting && fullyComplete && !prefersReducedMotion()) {
+            const exRow = document.querySelectorAll('#sessionExerciseList .workout-exercise')[idx];
+            if (exRow) {
+              exRow.classList.add('all-complete-flash');
+              exRow.addEventListener('animationend', () => exRow.classList.remove('all-complete-flash'), { once: true });
+            }
+          }
+        };
+        if (isCompleting && !prefersReducedMotion()) {
+          label.classList.add('tick-bounce');
+          spawnTickBurst(label);
+          setTimeout(commit, 300);
+        } else {
+          commit();
+        }
       });
     });
 
@@ -3113,6 +3639,15 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
   function getTomorrowsPlannedTask() {
     if (!weekPlanCache || weekPlanCacheKey !== currentWeekKey()) return null;
     return weekPlanCache.find(t => t.day === (todayDayIndex() + 1) % 7) || null;
+  }
+
+  function renderHomeUpcomingSession() {
+    const el = document.getElementById('homeUpcomingSession');
+    if (!el) return;
+    const task = getTodaysPlannedTask();
+    el.innerHTML = task
+      ? `<div class="item-row"><span style="font-size:20px;">${task.icon}</span><span style="font-weight:700;">Today: ${task.label}</span>${task.done ? '<span class="placeholder-text" style="margin-left:auto;">logged ✓</span>' : ''}</div>`
+      : '<p class="placeholder-text">No session planned — open the Week tab to plan one.</p>';
   }
 
   async function fetchWeekPlan(weekKey) {
@@ -3377,11 +3912,18 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     }
   }
 
-  function moveWeekTask(taskId, newDay) {
+  async function moveWeekTask(taskId, newDay) {
     const task = weekPlanCache.find(t => t.id === taskId);
     if (!task || task.done) return;
     task.day = newDay;
-    persistWeekPlan();
+    await persistWeekPlan();
+    if (!prefersReducedMotion()) {
+      const chip = document.querySelector(`.week-chip[data-task-id="${taskId}"]`);
+      if (chip) {
+        chip.classList.add('drop-bounce');
+        chip.addEventListener('animationend', () => chip.classList.remove('drop-bounce'), { once: true });
+      }
+    }
   }
 
   function removeWeekTask(taskId) {
