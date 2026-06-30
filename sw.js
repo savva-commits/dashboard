@@ -1,5 +1,5 @@
-const CACHE = 'savva-hq-v2';
-const ASSETS = ['./', './index.html', './manifest.json'];
+const CACHE = 'savva-hq-v3';
+const ASSETS = ['./', './index.html', './manifest.json', './styles.css', './app.js'];
 
 // Never let the service worker cache live API calls — these must always
 // reflect what's actually happening (recovery score, calendar events), and
