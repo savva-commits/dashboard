@@ -3201,29 +3201,44 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     return tasks;
   }
 
+  // Both the page-load init sequence and the Week tab's own click handler
+  // call this, and on a slow connection the first call can still be
+  // in-flight when the second fires. Without this guard each would
+  // independently fetch-empty -> regenerate -> save, racing two different
+  // freshly-generated task sets against each other.
+  let weekTabLoadPromise = null;
+
   async function loadWeekTab() {
-    const weekKey = currentWeekKey();
-    const monday = getMonday(new Date());
-    try {
-      let tasks = await fetchWeekPlan(weekKey);
-      if (!tasks || tasks.length === 0) {
-        tasks = defaultWeekTasks();
-        const fjcEvents = getFjcEventsForWeek(monday);
-        const lockedDayIndices = fjcEvents.map(e => (e.start.getDay() + 6) % 7);
-        const { band } = getRecoveryBand();
-        autoDistributeWeekTasks(tasks, lockedDayIndices, band);
-        await saveWeekPlanRemote(weekKey, tasks);
+    if (weekTabLoadPromise) return weekTabLoadPromise;
+    weekTabLoadPromise = (async () => {
+      const weekKey = currentWeekKey();
+      const monday = getMonday(new Date());
+      try {
+        let tasks = await fetchWeekPlan(weekKey);
+        if (!tasks || tasks.length === 0) {
+          tasks = defaultWeekTasks();
+          const fjcEvents = getFjcEventsForWeek(monday);
+          const lockedDayIndices = fjcEvents.map(e => (e.start.getDay() + 6) % 7);
+          const { band } = getRecoveryBand();
+          autoDistributeWeekTasks(tasks, lockedDayIndices, band);
+          await saveWeekPlanRemote(weekKey, tasks);
+        }
+        weekPlanCache = tasks;
+        weekPlanCacheKey = weekKey;
+      } catch (err) {
+        console.error('week load failed', err);
+        if (!weekPlanCache) { weekPlanCache = defaultWeekTasks(); weekPlanCacheKey = weekKey; }
       }
-      weekPlanCache = tasks;
-      weekPlanCacheKey = weekKey;
-    } catch (err) {
-      console.error('week load failed', err);
-      if (!weekPlanCache) { weekPlanCache = defaultWeekTasks(); weekPlanCacheKey = weekKey; }
+      renderWeekTab();
+      renderTodaySnapshot();
+      renderBriefingPreview();
+      if (typeof renderWeeklyTargets === 'function') renderWeeklyTargets();
+    })();
+    try {
+      await weekTabLoadPromise;
+    } finally {
+      weekTabLoadPromise = null;
     }
-    renderWeekTab();
-    renderTodaySnapshot();
-    renderBriefingPreview();
-    if (typeof renderWeeklyTargets === 'function') renderWeeklyTargets();
   }
 
   async function persistWeekPlan() {
