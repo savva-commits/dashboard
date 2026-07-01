@@ -341,8 +341,12 @@
     position:absolute;
     inset:0;
     display:flex;
-    align-items:baseline;
+    align-items:center;
     justify-content:center;
+  }
+  .ring-num-group{
+    display:flex;
+    align-items:baseline;
   }
   .ring-center .num{
     position:relative;
