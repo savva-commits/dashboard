@@ -326,6 +326,51 @@
     </div>
   </section>
 
+  <!-- PA -->
+  <section class="tab-panel" id="tab-pa">
+    <div class="split-layout">
+      <div class="split-col">
+        <div class="card pa-calendar-card">
+          <div class="pa-calendar-header">
+            <div class="segmented" id="paCalendarViewSegmented">
+              <button data-view="month" class="segmented-btn active">Month</button>
+              <button data-view="week" class="segmented-btn">Week</button>
+            </div>
+            <div class="pa-calendar-nav">
+              <button class="pa-cal-nav-btn" id="paCalPrevBtn" aria-label="Previous">‹</button>
+              <span class="pa-calendar-label" id="paCalendarLabel"></span>
+              <button class="pa-cal-nav-btn" id="paCalNextBtn" aria-label="Next">›</button>
+              <button class="btn secondary pa-today-btn" id="paCalTodayBtn">Today</button>
+            </div>
+          </div>
+          <div id="paCalendarMonthGrid" class="pa-month-grid"></div>
+          <div id="paCalendarWeekGrid" class="pa-week-grid" style="display:none;"></div>
+          <div id="paCalendarDayDetail" class="pa-day-detail"></div>
+          <p class="placeholder-text" id="paCalendarPlaceholder">Connect Google Calendar (Calendar tab) to see your full schedule here.</p>
+        </div>
+
+        <div class="card pa-feed-card">
+          <div class="pa-feed-header">
+            <h2 style="margin:0;">Inbox</h2>
+            <button class="pa-refresh-btn" id="paRefreshBtn" aria-label="Refresh">⟳</button>
+          </div>
+          <p class="placeholder-text pa-privacy-note">Emails are processed by Claude to surface what's relevant. Nothing is stored.</p>
+          <p class="pa-status-line" id="paStatusLine"></p>
+          <div id="paEmailFeed"></div>
+        </div>
+      </div>
+      <div class="split-col pa-detail-col">
+        <div class="pa-detail-backdrop" id="paDetailBackdrop"></div>
+        <div class="pa-detail-overlay" id="paDetailOverlay">
+          <div class="pa-detail-sheet-handle" id="paDetailCloseBtn"></div>
+          <div class="pa-detail-panel" id="paDetailPanel">
+            <p class="placeholder-text">Select an email to see Claude's summary and draft reply.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
 </main>
 
 <div id="weekModalOverlay" class="week-modal-overlay">
@@ -356,6 +401,20 @@
   </div>
 </div>
 
+<div id="paSendConfirmOverlay" class="week-modal-overlay">
+  <div class="week-modal" style="max-width:380px;">
+    <div class="settings-modal-header">
+      <h2>Send reply?</h2>
+      <button id="paSendConfirmCloseBtn" aria-label="Close">&times;</button>
+    </div>
+    <p class="placeholder-text" id="paSendConfirmText"></p>
+    <div class="week-modal-actions">
+      <button class="btn secondary" id="paSendConfirmCancelBtn">Cancel</button>
+      <button class="btn" id="paSendConfirmSendBtn">Send</button>
+    </div>
+  </div>
+</div>
+
 <nav class="tabbar">
   <div class="nav-indicator" id="navIndicator"></div>
   <button class="active" data-tab="home"><span class="icon">●</span>Home</button>
@@ -365,6 +424,7 @@
   <button data-tab="briefing"><span class="icon">■</span>Briefing</button>
   <button data-tab="gym"><span class="icon">🏋</span>Gym</button>
   <button data-tab="week"><span class="icon">📅</span>Week</button>
+  <button data-tab="pa"><span class="icon">🤖</span>PA</button>
 </nav>
 
 <script src="app.js"></script>

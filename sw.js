@@ -1,4 +1,4 @@
-const CACHE = 'savva-hq-v3';
+const CACHE = 'savva-hq-v4';
 const ASSETS = ['./', './index.html', './manifest.json', './styles.css', './app.js'];
 
 // Never let the service worker cache live API calls — these must always

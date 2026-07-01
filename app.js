@@ -3,6 +3,7 @@
   // tab's own init code further down ever executes.
   let weekPlanCache = null;
   let weekPlanCacheKey = null;
+  const PA_NEEDS_REPLY_COUNT_KEY = 'pa_needs_reply_count';
 
   // ---- Animation helpers (used by the Home hero, micro-interactions etc) ----
   function prefersReducedMotion() {
@@ -154,6 +155,9 @@
       if (btn.dataset.tab === 'week' && typeof loadWeekTab === 'function') {
         loadWeekTab();
       }
+      if (btn.dataset.tab === 'pa' && typeof loadPaTab === 'function') {
+        loadPaTab();
+      }
       if (btn.dataset.tab === 'home' && typeof replayHomeIntroAnimation === 'function') {
         replayHomeIntroAnimation();
       }
@@ -193,13 +197,26 @@
   // Then paste the Client ID below.
   const GOOGLE_CLIENT_ID = '581684498992-36jf2drdl17rikcps3dudhmss7vmuu23.apps.googleusercontent.com';
   const CALENDAR_ID = 'savva@ssmotorsport.uk';
-  const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
+  // v2 adds Gmail read/send on top of the original calendar-only scope.
+  // Existing tokens were granted under v1 and won't include Gmail access,
+  // so getStoredToken() below checks the stored scope version and forces
+  // a fresh consent prompt (rather than a silent token refresh) whenever
+  // it doesn't match — that's what lets the PA tab work for anyone who
+  // connected Calendar before this change shipped.
+  const GOOGLE_SCOPE = [
+    'https://www.googleapis.com/auth/calendar.readonly',
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/gmail.send'
+  ].join(' ');
+  const GOOGLE_SCOPE_VERSION = '2';
   const TOKEN_KEY = 'gcal_token';
+  const TOKEN_SCOPE_VERSION_KEY = 'gcal_token_scope_version';
 
   function getStoredToken() {
     try {
       const raw = localStorage.getItem(TOKEN_KEY);
       if (!raw) return null;
+      if (localStorage.getItem(TOKEN_SCOPE_VERSION_KEY) !== GOOGLE_SCOPE_VERSION) return null;
       const token = JSON.parse(raw);
       if (token.expires_at && Date.now() < token.expires_at) return token;
       return null;
@@ -212,6 +229,7 @@
       access_token: tokenResponse.access_token,
       expires_at
     }));
+    localStorage.setItem(TOKEN_SCOPE_VERSION_KEY, GOOGLE_SCOPE_VERSION);
   }
 
   let tokenClient = null;
@@ -219,11 +237,12 @@
     if (!GOOGLE_CLIENT_ID || !window.google || !google.accounts) return;
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
-      scope: CALENDAR_SCOPE,
+      scope: GOOGLE_SCOPE,
       callback: (resp) => {
         if (resp.error) { console.error('Google auth error', resp); return; }
         storeToken(resp);
         loadCalendar(true);
+        if (typeof loadPaTab === 'function') loadPaTab(true);
       }
     });
   }
@@ -237,11 +256,11 @@
     tokenClient.requestAccessToken({ prompt: getStoredToken() ? '' : 'consent' });
   }
 
-  async function fetchCalendarEvents(accessToken, calendarId) {
+  async function fetchCalendarEvents(accessToken, calendarId, daysBack, daysForward) {
     const timeMin = new Date();
-    timeMin.setDate(timeMin.getDate() - 30);
+    timeMin.setDate(timeMin.getDate() - (daysBack || 30));
     const timeMax = new Date();
-    timeMax.setDate(timeMax.getDate() + 30);
+    timeMax.setDate(timeMax.getDate() + (daysForward || 30));
     const params = new URLSearchParams({
       timeMin: timeMin.toISOString(),
       timeMax: timeMax.toISOString(),
@@ -275,6 +294,129 @@
     const data = await res.json();
     const match = (data.items || []).find(c => c.summary && c.summary.toLowerCase().includes(namePart.toLowerCase()));
     return match ? match.id : null;
+  }
+
+  // ---- Gmail (PA tab) ----
+  // Same pattern as fetchCalendarEvents above: called directly from the
+  // browser with the Bearer token from getStoredToken(), no server proxy.
+
+  function base64UrlDecode(str) {
+    const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+    try { return decodeURIComponent(escape(atob(b64))); } catch (e) {
+      try { return atob(b64); } catch (e2) { return ''; }
+    }
+  }
+
+  function base64UrlEncode(str) {
+    return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function stripHtml(html) {
+    let text = html
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<\/tr>/gi, '\n')
+      .replace(/<[^>]+>/g, '');
+    text = text
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+    return text.replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  // Walks the (possibly nested multipart) payload for the best body we can
+  // show — prefers plain text, falls back to stripped HTML.
+  function decodeGmailBody(payload) {
+    if (!payload) return '';
+    let plain = null, html = null;
+    function walk(part) {
+      if (!part) return;
+      if (part.mimeType === 'text/plain' && part.body && part.body.data) {
+        plain = base64UrlDecode(part.body.data);
+      } else if (part.mimeType === 'text/html' && part.body && part.body.data) {
+        html = base64UrlDecode(part.body.data);
+      }
+      (part.parts || []).forEach(walk);
+    }
+    walk(payload);
+    if (plain) return plain.trim();
+    if (html) return stripHtml(html);
+    return '';
+  }
+
+  function getGmailHeader(headers, name) {
+    const h = (headers || []).find(h => h.name.toLowerCase() === name.toLowerCase());
+    return h ? h.value : '';
+  }
+
+  function parseFromHeader(from) {
+    const match = from.match(/^"?([^"<]*)"?\s*<?([^>]*)>?$/);
+    const name = (match && match[1].trim()) || from;
+    const email = (match && match[2].trim()) || from;
+    return { name: name || email, email };
+  }
+
+  async function fetchGmailThreads(accessToken, maxResults) {
+    const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent('is:unread')}&maxResults=${maxResults || 50}`;
+    const listRes = await fetch(listUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!listRes.ok) {
+      if (listRes.status === 401) localStorage.removeItem(TOKEN_KEY);
+      throw new Error('Gmail list fetch failed: ' + listRes.status);
+    }
+    const listData = await listRes.json();
+    const ids = (listData.messages || []).map(m => m.id);
+    const messages = await Promise.all(ids.map(async id => {
+      const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (!res.ok) return null;
+      return res.json();
+    }));
+    return messages.filter(Boolean).map(m => {
+      const headers = m.payload && m.payload.headers;
+      const from = parseFromHeader(getGmailHeader(headers, 'From'));
+      return {
+        id: m.id,
+        threadId: m.threadId,
+        subject: getGmailHeader(headers, 'Subject') || '(no subject)',
+        from,
+        messageIdHeader: getGmailHeader(headers, 'Message-ID'),
+        date: new Date(Number(m.internalDate)),
+        snippet: m.snippet || '',
+        body: decodeGmailBody(m.payload),
+        unread: (m.labelIds || []).includes('UNREAD')
+      };
+    }).sort((a, b) => b.date - a.date);
+  }
+
+  async function sendGmailReply(accessToken, { to, subject, body, threadId, inReplyTo }) {
+    const replySubject = /^re:/i.test(subject) ? subject : `Re: ${subject}`;
+    const headerLines = [
+      `To: ${to}`,
+      `Subject: ${replySubject}`,
+      'Content-Type: text/plain; charset="UTF-8"'
+    ];
+    if (inReplyTo) {
+      headerLines.push(`In-Reply-To: ${inReplyTo}`);
+      headerLines.push(`References: ${inReplyTo}`);
+    }
+    const raw = base64UrlEncode(headerLines.join('\r\n') + '\r\n\r\n' + body);
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ raw, threadId })
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error('Gmail send failed: ' + res.status + ' ' + errText);
+    }
+    return res.json();
   }
 
   function daysUntil(date) {
@@ -1071,6 +1213,64 @@
     document.getElementById('anthropicKeyInput').placeholder = 'Key saved ✓ — sk-ant-...';
   });
 
+  // ---- Claude helper (PA tab) ----
+  // Same direct-browser-call pattern as sendChatMessage() above — no server
+  // proxy, key never leaves this device except in the request to Anthropic.
+  async function callClaude(system, messages, maxTokens) {
+    const key = getAnthropicKey();
+    if (!key) throw new Error('missing_anthropic_key');
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: maxTokens || 800,
+        system,
+        messages
+      })
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error('Anthropic API error: ' + res.status + ' ' + errText);
+    }
+    const data = await res.json();
+    return (data.content || []).map(c => c.text || '').join('\n');
+  }
+
+  // Extracts the first {...} or [...] block from a Claude response, so a
+  // reply like "Here you go:\n[...]" still parses even though we asked for
+  // JSON only.
+  function extractJson(text) {
+    const match = text.match(/[\[{][\s\S]*[\]}]/);
+    if (!match) throw new Error('no_json_in_response');
+    return JSON.parse(match[0]);
+  }
+
+  async function triageEmailsWithClaude(emails) {
+    const list = emails.map(e => ({ id: e.id, from: e.from.name + ' <' + e.from.email + '>', subject: e.subject, snippet: e.snippet }));
+    const system = 'You are a personal assistant for Savva, a racing driver. Review these email subjects and senders and return only the ones that are relevant to him. Relevant means: racing, motorsport, logistics (travel, hotels, schedules), people he works with (teams, managers, organisers, sponsors), or anything that requires a response. Return a JSON array of the relevant email IDs only, with a one-line summary and a relevance_score 1-10 for each. Respond with ONLY the JSON array, no other text. Each item: {"id": "...", "summary": "...", "relevance_score": 1-10, "category": "racing"|"logistics"|"meeting"|"other", "needs_reply": true|false}';
+    const text = await callClaude(system, [{ role: 'user', content: JSON.stringify(list) }], 2000);
+    return extractJson(text);
+  }
+
+  async function draftReplyWithClaude(email) {
+    const system = 'You are a personal assistant helping Savva, a racing driver, manage his communications. Write replies that are professional, direct, and natural — not overly formal. Savva is focused on the 2026 FJC season and targeting GT4 in 2027.';
+    const emailText = `From: ${email.from.name} <${email.from.email}>\nSubject: ${email.subject}\n\n${email.body}`;
+    return callClaude(system, [{ role: 'user', content: `Draft a reply to this email:\n\n${emailText}` }], 600);
+  }
+
+  async function refineDraftWithClaude(email, currentDraft, chatHistory, userMessage) {
+    const emailText = `From: ${email.from.name} <${email.from.email}>\nSubject: ${email.subject}\n\n${email.body}`;
+    const system = `You are helping Savva refine a draft email reply. Here is the original email:\n\n${emailText}\n\nHere is the current draft reply:\n\n${currentDraft}\n\nThe user will give refinement instructions. Respond with ONLY the full updated draft text — no preamble, no explanation, no quotes around it.`;
+    const messages = chatHistory.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: userMessage }]);
+    return callClaude(system, messages, 600);
+  }
+
   function gatherBriefingContext() {
     const recovery = localStorage.getItem('latest_recovery_score');
     const hrv = document.getElementById('hrvValue').textContent.trim() + ' ms';
@@ -1090,7 +1290,22 @@
     const plannedToday = typeof getTodaysPlannedTask === 'function' ? getTodaysPlannedTask() : null;
     const todayPlan = plannedToday ? `${plannedToday.icon} ${plannedToday.label}${plannedToday.done ? ' (already logged)' : ''}` : 'Nothing planned in the Week tab';
 
-    return { recovery, hrv, rhr, sleepPerf, sleepHours, isRaceWeek, nextRace, todayPlan };
+    let todaysEvents = 'No calendar events today';
+    try {
+      const all = JSON.parse(localStorage.getItem('pa_all_events_cache') || '[]').map(e => ({ ...e, start: new Date(e.start) }));
+      const tKey = todayKey();
+      const today = all.filter(e => localDateKey(e.start) === tKey).sort((a, b) => a.start - b.start);
+      if (today.length) todaysEvents = today.map(e => `${e.allDay ? 'All day' : formatTime(e.start)} — ${e.title}`).join('; ');
+    } catch (e) {}
+
+    let emailsAwaitingReply = 'None';
+    try {
+      const emails = JSON.parse(localStorage.getItem('pa_emails_cache') || '[]');
+      const needsReply = emails.filter(e => e.needs_reply);
+      if (needsReply.length) emailsAwaitingReply = needsReply.map(e => `${e.from.name}: ${e.subject}`).join('; ');
+    } catch (e) {}
+
+    return { recovery, hrv, rhr, sleepPerf, sleepHours, isRaceWeek, nextRace, todayPlan, todaysEvents, emailsAwaitingReply };
   }
 
   function buildSystemPrompt() {
@@ -1106,6 +1321,8 @@ Live data:
 - Race week: ${ctx.isRaceWeek ? 'yes' : 'no'}
 - Next FJC round: ${ctx.nextRace}
 - Today's planned session: ${ctx.todayPlan}
+- Today's calendar: ${ctx.todaysEvents}
+- Emails awaiting reply: ${ctx.emailsAwaitingReply}
 
 Keep replies short, direct, and action-first. No preamble, no sign-off.`;
   }
@@ -1151,14 +1368,18 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
     if (!el) return;
     const plannedToday = typeof getTodaysPlannedTask === 'function' ? getTodaysPlannedTask() : null;
     const planLine = plannedToday ? `<p class="placeholder-text" style="color:var(--ink);font-weight:700;margin-bottom:6px;">Today: ${plannedToday.icon} ${plannedToday.label}</p>` : '';
+    const needsReplyCount = Number(localStorage.getItem(PA_NEEDS_REPLY_COUNT_KEY) || 0);
+    const badgeLine = needsReplyCount > 0
+      ? `<p class="placeholder-text" style="margin-bottom:6px;"><span class="pa-needs-reply-badge">${needsReplyCount} email${needsReplyCount === 1 ? '' : 's'} need${needsReplyCount === 1 ? 's' : ''} a reply</span></p>`
+      : '';
     const history = getChatHistory();
     const lastAssistant = [...history].reverse().find(m => m.role === 'assistant');
     if (!lastAssistant) {
-      el.innerHTML = planLine + '<p class="placeholder-text">No briefing yet — open the Briefing tab to chat.</p>';
+      el.innerHTML = planLine + badgeLine + '<p class="placeholder-text">No briefing yet — open the Briefing tab to chat.</p>';
       return;
     }
     const preview = lastAssistant.content.length > 220 ? lastAssistant.content.slice(0, 220) + '…' : lastAssistant.content;
-    el.innerHTML = planLine + `<p class="placeholder-text" style="color:var(--ink);">${preview}</p>`;
+    el.innerHTML = planLine + badgeLine + `<p class="placeholder-text" style="color:var(--ink);">${preview}</p>`;
   }
 
   document.getElementById('openBriefingFromHomeBtn').addEventListener('click', () => {
@@ -2577,3 +2798,527 @@ Keep replies short, direct, and action-first. No preamble, no sign-off.`;
       updateTrainingPlan();
     }, 400);
   });
+
+  // ==== PA tab: Personal Assistant (full calendar + Gmail triage + chat) ====
+
+  let paCalendarViewMode = 'month';
+  let paCalendarCursor = new Date();
+  let paAllEvents = [];
+  let paSelectedDayKey = null;
+  let paEmails = [];
+  let paSelectedEmailId = null;
+  let paChatHistory = [];
+  let paCurrentDraft = '';
+  let paLoadPromise = null;
+
+  const PA_EVENTS_CACHE_KEY = 'pa_all_events_cache';
+  const PA_EVENTS_CACHE_DATE_KEY = 'pa_all_events_cache_date';
+  const PA_EMAILS_CACHE_KEY = 'pa_emails_cache';
+  const PA_EMAILS_CACHE_DATE_KEY = 'pa_emails_cache_date';
+
+  // Simple keyword classifier — cheap and instant, run against title +
+  // description at render time rather than burning a Claude call per event.
+  function classifyEventCategory(title, description) {
+    const t = ((title || '') + ' ' + (description || '')).toLowerCase();
+    if (/\bfjc\b|race|qualifying/.test(t)) return { category: 'racing', chipClass: 'cat-racing' };
+    if (/\btest\b|shakedown/.test(t)) return { category: 'test', chipClass: 'cat-test' };
+    if (/travel|flight|hotel|drive to/.test(t)) return { category: 'travel', chipClass: 'cat-travel' };
+    if (/meeting|\bcall\b|zoom|debrief/.test(t)) return { category: 'meeting', chipClass: 'cat-meeting' };
+    return { category: 'other', chipClass: 'cat-other' };
+  }
+
+  function paMonthLabel(d) {
+    return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  }
+
+  function paWeekLabel(monday) {
+    const sunday = new Date(monday);
+    sunday.setDate(sunday.getDate() + 6);
+    return `${monday.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${sunday.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`;
+  }
+
+  function renderPaCalendarLabel() {
+    const el = document.getElementById('paCalendarLabel');
+    if (!el) return;
+    el.textContent = paCalendarViewMode === 'month' ? paMonthLabel(paCalendarCursor) : paWeekLabel(getMonday(paCalendarCursor));
+  }
+
+  function paEventsOnDay(dateKey) {
+    return paAllEvents.filter(e => localDateKey(e.start) === dateKey);
+  }
+
+  function renderPaMonthGrid() {
+    const grid = document.getElementById('paCalendarMonthGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach(w => {
+      const label = document.createElement('div');
+      label.className = 'pa-month-weekday';
+      label.textContent = w;
+      grid.appendChild(label);
+    });
+
+    const year = paCalendarCursor.getFullYear();
+    const month = paCalendarCursor.getMonth();
+    const firstOfMonth = new Date(year, month, 1);
+    const gridStart = getMonday(firstOfMonth);
+    const todayK = todayKey();
+
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(gridStart);
+      d.setDate(d.getDate() + i);
+      const dKey = localDateKey(d);
+      const cell = document.createElement('div');
+      cell.className = 'pa-month-day';
+      if (d.getMonth() !== month) cell.classList.add('other-month');
+      if (dKey === todayK) cell.classList.add('is-today');
+      if (dKey === paSelectedDayKey) cell.classList.add('is-selected');
+      cell.dataset.dateKey = dKey;
+
+      const num = document.createElement('div');
+      num.className = 'day-num';
+      num.textContent = d.getDate();
+      cell.appendChild(num);
+
+      const dayEvents = paEventsOnDay(dKey);
+      dayEvents.slice(0, 2).forEach(ev => {
+        const chip = document.createElement('div');
+        chip.className = 'pa-event-chip ' + classifyEventCategory(ev.title).chipClass;
+        chip.textContent = ev.title;
+        cell.appendChild(chip);
+      });
+      if (dayEvents.length > 2) {
+        const more = document.createElement('div');
+        more.className = 'more-chip';
+        more.textContent = `+${dayEvents.length - 2} more`;
+        cell.appendChild(more);
+      }
+
+      cell.addEventListener('click', () => selectPaDay(dKey));
+      grid.appendChild(cell);
+
+      // Stop once we've rendered a full trailing week past month end.
+      if (i >= 34 && d.getMonth() !== month && d.getDay() === 0) break;
+    }
+  }
+
+  function renderPaWeekGrid() {
+    const grid = document.getElementById('paCalendarWeekGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    const monday = getMonday(paCalendarCursor);
+    const todayK = todayKey();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(d.getDate() + i);
+      const dKey = localDateKey(d);
+      const col = document.createElement('div');
+      col.className = 'pa-week-day-col';
+      if (dKey === todayK) col.classList.add('is-today');
+      const label = document.createElement('div');
+      label.className = 'day-label';
+      label.textContent = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
+      col.appendChild(label);
+
+      paEventsOnDay(dKey)
+        .sort((a, b) => a.start - b.start)
+        .forEach(ev => {
+          const chip = document.createElement('div');
+          const cls = classifyEventCategory(ev.title);
+          chip.className = 'pa-week-event pa-event-chip ' + cls.chipClass;
+          chip.textContent = (ev.allDay ? '' : formatTime(ev.start) + ' ') + ev.title;
+          chip.addEventListener('click', () => selectPaDay(dKey));
+          col.appendChild(chip);
+        });
+
+      grid.appendChild(col);
+    }
+  }
+
+  function selectPaDay(dateKey) {
+    paSelectedDayKey = dateKey;
+    if (paCalendarViewMode === 'month') renderPaMonthGrid();
+    renderPaDayDetail();
+    highlightEmailsForDay(dateKey);
+  }
+
+  function renderPaDayDetail() {
+    const el = document.getElementById('paCalendarDayDetail');
+    if (!el) return;
+    if (!paSelectedDayKey) { el.innerHTML = ''; return; }
+    const events = paEventsOnDay(paSelectedDayKey).sort((a, b) => a.start - b.start);
+    const dateLabel = new Date(paSelectedDayKey + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+    if (events.length === 0) {
+      el.innerHTML = `<p class="placeholder-text">No events on ${dateLabel}.</p>`;
+      return;
+    }
+    el.innerHTML = `<p class="placeholder-text" style="color:var(--ink);font-weight:700;">${dateLabel}</p>` +
+      events.map(ev => {
+        const cls = classifyEventCategory(ev.title);
+        return `<div class="event-row" style="border-left-color:var(--${cls.category === 'racing' ? 'red' : cls.category === 'test' ? 'amber' : cls.category === 'travel' ? 'blue' : cls.category === 'meeting' ? 'purple' : 'grey-text'});"><span class="name">${ev.title}</span><span class="date">${ev.allDay ? 'All day' : formatTime(ev.start)}</span></div>`;
+      }).join('');
+  }
+
+  // If any visible emails mention the selected day's event location/title
+  // keywords, highlight them so the connection between calendar and inbox
+  // is visible at a glance.
+  function highlightEmailsForDay(dateKey) {
+    const events = paEventsOnDay(dateKey);
+    const keywords = events.flatMap(ev => ev.title.toLowerCase().split(/\s+/)).filter(w => w.length > 3);
+    document.querySelectorAll('.pa-email-card').forEach(card => {
+      const text = (card.dataset.searchText || '').toLowerCase();
+      const match = keywords.some(kw => text.includes(kw));
+      card.classList.toggle('day-highlight', match && keywords.length > 0);
+    });
+  }
+
+  function switchPaCalendarView(mode) {
+    paCalendarViewMode = mode;
+    document.querySelectorAll('#paCalendarViewSegmented .segmented-btn').forEach(b => b.classList.toggle('active', b.dataset.view === mode));
+    document.getElementById('paCalendarMonthGrid').style.display = mode === 'month' ? 'grid' : 'none';
+    document.getElementById('paCalendarWeekGrid').style.display = mode === 'week' ? 'grid' : 'none';
+    renderPaCalendarLabel();
+    if (mode === 'month') renderPaMonthGrid(); else renderPaWeekGrid();
+  }
+
+  document.querySelectorAll('#paCalendarViewSegmented .segmented-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchPaCalendarView(btn.dataset.view));
+  });
+
+  function navigatePaCalendar(dir) {
+    if (paCalendarViewMode === 'month') paCalendarCursor.setMonth(paCalendarCursor.getMonth() + dir);
+    else paCalendarCursor.setDate(paCalendarCursor.getDate() + dir * 7);
+    paCalendarCursor = new Date(paCalendarCursor);
+    renderPaCalendarLabel();
+    if (paCalendarViewMode === 'month') renderPaMonthGrid(); else renderPaWeekGrid();
+  }
+
+  document.getElementById('paCalPrevBtn').addEventListener('click', () => navigatePaCalendar(-1));
+  document.getElementById('paCalNextBtn').addEventListener('click', () => navigatePaCalendar(1));
+  document.getElementById('paCalTodayBtn').addEventListener('click', () => {
+    paCalendarCursor = new Date();
+    renderPaCalendarLabel();
+    if (paCalendarViewMode === 'month') renderPaMonthGrid(); else renderPaWeekGrid();
+  });
+
+  async function loadPaCalendar(force) {
+    const placeholder = document.getElementById('paCalendarPlaceholder');
+    const cacheDate = localStorage.getItem(PA_EVENTS_CACHE_DATE_KEY);
+    const cachedRaw = localStorage.getItem(PA_EVENTS_CACHE_KEY);
+    if (!force && cacheDate === todayKey() && cachedRaw) {
+      paAllEvents = reviveEventDates(cachedRaw);
+      placeholder.style.display = 'none';
+      renderPaCalendarLabel();
+      renderPaMonthGrid();
+      return;
+    }
+    const token = getStoredToken();
+    if (!token) {
+      placeholder.style.display = 'block';
+      paAllEvents = [];
+      renderPaCalendarLabel();
+      renderPaMonthGrid();
+      return;
+    }
+    placeholder.style.display = 'none';
+    try {
+      paAllEvents = await fetchCalendarEvents(token.access_token, CALENDAR_ID, 45, 90);
+      localStorage.setItem(PA_EVENTS_CACHE_KEY, JSON.stringify(paAllEvents));
+      localStorage.setItem(PA_EVENTS_CACHE_DATE_KEY, todayKey());
+    } catch (err) {
+      console.error(err);
+      if (cachedRaw) paAllEvents = reviveEventDates(cachedRaw);
+    }
+    renderPaCalendarLabel();
+    if (paCalendarViewMode === 'month') renderPaMonthGrid(); else renderPaWeekGrid();
+  }
+
+  // ---- Email feed ----
+
+  function paTruncate(str, n) {
+    return str.length > n ? str.slice(0, n - 1) + '…' : str;
+  }
+
+  function renderPaEmailSkeletons() {
+    const feed = document.getElementById('paEmailFeed');
+    feed.innerHTML = Array(4).fill('<div class="pa-skeleton-card"></div>').join('');
+  }
+
+  function renderPaEmailFeed() {
+    const feed = document.getElementById('paEmailFeed');
+    const statusLine = document.getElementById('paStatusLine');
+    statusLine.textContent = '';
+    if (!getStoredToken()) {
+      feed.innerHTML = '<p class="placeholder-text">Connect Google Calendar (Calendar tab) to load your inbox — Gmail access is granted together with Calendar.</p>';
+      return;
+    }
+    if (paEmails.length === 0) {
+      feed.innerHTML = '<p class="placeholder-text">Nothing relevant in your unread inbox right now.</p>';
+      return;
+    }
+    feed.innerHTML = '';
+    paEmails.forEach(email => {
+      const card = document.createElement('div');
+      card.className = `pa-email-card cat-${email.category}` + (email.id === paSelectedEmailId ? ' selected' : '');
+      card.dataset.searchText = (email.subject + ' ' + email.summary + ' ' + email.body).toLowerCase();
+      card.innerHTML = `
+        <div class="pa-email-top-row">
+          ${email.unread ? '<span class="pa-email-unread-dot"></span>' : ''}
+          <span class="pa-email-sender">${email.from.name}</span>
+          <span class="pa-email-time">${formatDate(email.date)}</span>
+        </div>
+        <div class="pa-email-subject">${paTruncate(email.subject, 60)}</div>
+        <div class="pa-email-summary">${email.summary}</div>
+        ${email.needs_reply ? '<span class="pa-needs-reply-badge">Needs reply</span>' : ''}
+      `;
+      card.addEventListener('click', () => selectPaEmail(email.id));
+      feed.appendChild(card);
+    });
+  }
+
+  async function loadPaEmails(force) {
+    const statusLine = document.getElementById('paStatusLine');
+    const refreshBtn = document.getElementById('paRefreshBtn');
+    const token = getStoredToken();
+    if (!token) { renderPaEmailFeed(); return; }
+
+    const cacheDate = localStorage.getItem(PA_EMAILS_CACHE_DATE_KEY);
+    const cachedRaw = localStorage.getItem(PA_EMAILS_CACHE_KEY);
+    if (!force && cacheDate === todayKey() && cachedRaw) {
+      try {
+        paEmails = JSON.parse(cachedRaw).map(e => ({ ...e, date: new Date(e.date) }));
+        renderPaEmailFeed();
+        updateHomeNeedsReplyBadge();
+        return;
+      } catch (e) { /* fall through to refetch */ }
+    }
+
+    if (!getAnthropicKey()) {
+      statusLine.textContent = 'Save your Anthropic API key (Briefing tab) to enable email triage.';
+      renderPaEmailSkeletons();
+      document.getElementById('paEmailFeed').innerHTML = '<p class="placeholder-text">Save your Anthropic API key on the Briefing tab first — it\'s needed to triage and summarise emails.</p>';
+      return;
+    }
+
+    refreshBtn.classList.add('spinning');
+    renderPaEmailSkeletons();
+    statusLine.textContent = 'Fetching your inbox…';
+    try {
+      const threads = await fetchGmailThreads(token.access_token, 50);
+      statusLine.textContent = 'Claude is reading your emails…';
+      const triaged = await triageEmailsWithClaude(threads);
+      const byId = new Map(threads.map(t => [t.id, t]));
+      paEmails = triaged
+        .filter(t => t.relevance_score >= 5 && byId.has(t.id))
+        .sort((a, b) => (b.relevance_score - a.relevance_score) || (byId.get(b.id).date - byId.get(a.id).date))
+        .map(t => ({ ...byId.get(t.id), summary: t.summary, category: t.category || 'other', needs_reply: !!t.needs_reply }));
+      localStorage.setItem(PA_EMAILS_CACHE_KEY, JSON.stringify(paEmails));
+      localStorage.setItem(PA_EMAILS_CACHE_DATE_KEY, todayKey());
+      statusLine.textContent = '';
+      renderPaEmailFeed();
+      updateHomeNeedsReplyBadge();
+    } catch (err) {
+      console.error(err);
+      statusLine.textContent = 'Could not load/triage inbox — try refreshing.';
+      if (cachedRaw) {
+        try { paEmails = JSON.parse(cachedRaw).map(e => ({ ...e, date: new Date(e.date) })); renderPaEmailFeed(); } catch (e) {}
+      } else {
+        document.getElementById('paEmailFeed').innerHTML = '';
+      }
+    } finally {
+      refreshBtn.classList.remove('spinning');
+    }
+  }
+
+  document.getElementById('paRefreshBtn').addEventListener('click', () => loadPaEmails(true));
+
+  function updateHomeNeedsReplyBadge() {
+    const count = paEmails.filter(e => e.needs_reply).length;
+    localStorage.setItem(PA_NEEDS_REPLY_COUNT_KEY, String(count));
+    renderBriefingPreview();
+  }
+
+  // ---- Email detail, draft, send ----
+
+  function openPaDetail() {
+    document.getElementById('paDetailOverlay').classList.add('open');
+    document.getElementById('paDetailBackdrop').classList.add('open');
+  }
+
+  function closePaDetail() {
+    document.getElementById('paDetailOverlay').classList.remove('open');
+    document.getElementById('paDetailBackdrop').classList.remove('open');
+    paSelectedEmailId = null;
+    renderPaEmailFeed();
+  }
+
+  document.getElementById('paDetailCloseBtn').addEventListener('click', closePaDetail);
+  document.getElementById('paDetailBackdrop').addEventListener('click', closePaDetail);
+
+  async function selectPaEmail(id) {
+    paSelectedEmailId = id;
+    paChatHistory = [];
+    renderPaEmailFeed();
+    openPaDetail();
+    const email = paEmails.find(e => e.id === id);
+    if (!email) return;
+
+    const panel = document.getElementById('paDetailPanel');
+    panel.innerHTML = paDetailShellHtml(email, null);
+
+    if (email.needs_reply) {
+      try {
+        paCurrentDraft = await draftReplyWithClaude(email);
+      } catch (err) {
+        console.error(err);
+        paCurrentDraft = '';
+      }
+      if (paSelectedEmailId === id) panel.innerHTML = paDetailShellHtml(email, paCurrentDraft);
+    }
+    wirePaDetailActions(email);
+  }
+
+  function paDetailShellHtml(email, draft) {
+    return `
+      <div class="pa-detail-header">
+        <h3>${email.subject}</h3>
+        <div class="pa-detail-meta">From: ${email.from.name} &lt;${email.from.email}&gt;<br>${formatDate(email.date)} · ${formatTime(email.date)}</div>
+      </div>
+      <div class="pa-detail-body">${email.body || email.snippet}</div>
+      <div class="pa-summary-card">
+        <div class="pa-card-label">Claude's summary</div>
+        <div class="pa-card-text">${email.summary}</div>
+      </div>
+      ${email.needs_reply ? `
+        <div class="pa-draft-card">
+          <div class="pa-card-label">Suggested reply</div>
+          <div class="pa-card-text" id="paDraftText">${draft === null ? 'Drafting reply…' : draft}</div>
+          ${draft !== null ? `
+            <div class="pa-draft-actions">
+              <button class="btn secondary" id="paRefineBtn">Refine with Claude</button>
+              <button class="btn" id="paSendBtn">Send reply</button>
+            </div>
+          ` : ''}
+        </div>
+        <div class="pa-chat-panel" id="paChatPanel" style="display:none;">
+          <div class="pa-chat-messages" id="paChatMessages"></div>
+          <div class="pa-chat-input-row">
+            <input type="text" id="paChatInput" placeholder="e.g. make it shorter">
+            <button class="btn" id="paChatSendBtn">Send</button>
+          </div>
+          <button class="btn secondary" id="paUseDraftBtn" style="margin-top:8px;width:100%;">Use this draft</button>
+        </div>
+      ` : ''}
+    `;
+  }
+
+  function wirePaDetailActions(email) {
+    const refineBtn = document.getElementById('paRefineBtn');
+    const sendBtn = document.getElementById('paSendBtn');
+    const chatPanel = document.getElementById('paChatPanel');
+    if (refineBtn) {
+      refineBtn.addEventListener('click', () => {
+        chatPanel.style.display = chatPanel.style.display === 'none' ? 'block' : 'none';
+        renderPaChat();
+      });
+    }
+    if (sendBtn) {
+      sendBtn.addEventListener('click', () => openPaSendConfirm(email));
+    }
+    const chatSendBtn = document.getElementById('paChatSendBtn');
+    const chatInput = document.getElementById('paChatInput');
+    if (chatSendBtn) {
+      chatSendBtn.addEventListener('click', () => sendPaChatMessage(email));
+      chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendPaChatMessage(email); });
+    }
+    const useDraftBtn = document.getElementById('paUseDraftBtn');
+    if (useDraftBtn) {
+      useDraftBtn.addEventListener('click', () => {
+        chatPanel.style.display = 'none';
+      });
+    }
+  }
+
+  function renderPaChat() {
+    const container = document.getElementById('paChatMessages');
+    if (!container) return;
+    container.innerHTML = '';
+    if (paChatHistory.length === 0) {
+      container.innerHTML = '<p class="placeholder-text">Tell Claude how to adjust the draft.</p>';
+      return;
+    }
+    paChatHistory.forEach(m => {
+      const bubble = document.createElement('div');
+      bubble.className = 'pa-chat-bubble ' + (m.role === 'user' ? 'user' : 'assistant');
+      bubble.textContent = m.content;
+      container.appendChild(bubble);
+    });
+    container.scrollTop = container.scrollHeight;
+  }
+
+  async function sendPaChatMessage(email) {
+    const input = document.getElementById('paChatInput');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    paChatHistory.push({ role: 'user', content: text });
+    renderPaChat();
+    try {
+      const updatedDraft = await refineDraftWithClaude(email, paCurrentDraft, paChatHistory, text);
+      paCurrentDraft = updatedDraft;
+      paChatHistory.push({ role: 'assistant', content: 'Updated the draft above.' });
+      const draftTextEl = document.getElementById('paDraftText');
+      if (draftTextEl) draftTextEl.textContent = paCurrentDraft;
+    } catch (err) {
+      console.error(err);
+      paChatHistory.push({ role: 'assistant', content: 'Something went wrong — try again.' });
+    }
+    renderPaChat();
+  }
+
+  function openPaSendConfirm(email) {
+    document.getElementById('paSendConfirmText').textContent = `Send this reply to ${email.from.name}?`;
+    document.getElementById('paSendConfirmOverlay').classList.add('open');
+    const sendBtn = document.getElementById('paSendConfirmSendBtn');
+    const newSendBtn = sendBtn.cloneNode(true);
+    sendBtn.parentNode.replaceChild(newSendBtn, sendBtn);
+    newSendBtn.addEventListener('click', async () => {
+      const token = getStoredToken();
+      if (!token) return;
+      newSendBtn.textContent = 'Sending…';
+      newSendBtn.disabled = true;
+      try {
+        await sendGmailReply(token.access_token, {
+          to: email.from.email,
+          subject: email.subject,
+          body: paCurrentDraft,
+          threadId: email.threadId,
+          inReplyTo: email.messageIdHeader
+        });
+        document.getElementById('paSendConfirmOverlay').classList.remove('open');
+        closePaDetail();
+        paEmails = paEmails.filter(e => e.id !== email.id);
+        localStorage.setItem(PA_EMAILS_CACHE_KEY, JSON.stringify(paEmails));
+        renderPaEmailFeed();
+        updateHomeNeedsReplyBadge();
+      } catch (err) {
+        console.error(err);
+        alert('Failed to send — check your connection and try again.');
+        newSendBtn.textContent = 'Send';
+        newSendBtn.disabled = false;
+      }
+    });
+  }
+
+  document.getElementById('paSendConfirmCloseBtn').addEventListener('click', () => {
+    document.getElementById('paSendConfirmOverlay').classList.remove('open');
+  });
+  document.getElementById('paSendConfirmCancelBtn').addEventListener('click', () => {
+    document.getElementById('paSendConfirmOverlay').classList.remove('open');
+  });
+
+  function loadPaTab(force) {
+    if (paLoadPromise && !force) return paLoadPromise;
+    paLoadPromise = Promise.all([loadPaCalendar(force), loadPaEmails(force)]).finally(() => { paLoadPromise = null; });
+    return paLoadPromise;
+  }
